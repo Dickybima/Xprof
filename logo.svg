@@ -11,7 +11,7 @@
     </radialGradient>
   </defs>
   <g filter="url(#glow)" stroke="#39ff14" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M32 1v15" stroke-width="1.2" opacity=".8"/>
+    <path d="M32 5v11" stroke-width="1.2" opacity=".8"/>
     <path d="M27.5 20.5 19 10.5 12.5 5M26 23.5 15.5 17.5 6.5 19.5M26 27 15.5 30.5 8 39M27.5 30.5 19.5 41 14.5 53"/>
     <path d="M36.5 20.5 45 10.5 51.5 5M38 23.5 48.5 17.5 57.5 19.5M38 27 48.5 30.5 56 39M36.5 30.5 44.5 41 49.5 53"/>
   </g>
