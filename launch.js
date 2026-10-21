@@ -4,6 +4,7 @@ import {
 } from "./vendor/viem.js";
 import { robinhood, PONS, factoryAbi, forwarderAbi, quoteOpeningBuy, applySlippage, randomSalt } from "./pons.js";
 import { XPROF_FEE_VAULT } from "./config.js";
+import { pickWallet, lastWallet, rememberWallet } from "./wallets.js";
 
 const $ = (s) => document.querySelector(s);
 const SLIPPAGE_BPS = 300;
@@ -19,7 +20,7 @@ const els = {
   connect: $("#connectBtn"), launch: $("#launchBtn"), status: $("#status"),
 };
 
-const state = { profile: null, logo: "", account: null, wallet: null, client: null, terms: null, busy: false };
+const state = { profile: null, logo: "", account: null, wallet: null, client: null, provider: null, walletInfo: null, terms: null, busy: false };
 
 // ---------- helpers ----------
 let toastTimer;
@@ -189,30 +190,62 @@ async function ensureChain(provider) {
   }
 }
 
-async function connect() {
-  const provider = window.ethereum;
-  if (!provider) {
-    toast("No EVM wallet found — install MetaMask, Rabby or similar");
-    return false;
-  }
-  const [account] = await provider.request({ method: "eth_requestAccounts" });
-  await ensureChain(provider);
+function setConnectedUi() {
+  const w = state.walletInfo;
+  els.connect.innerHTML = state.account
+    ? `${w?.icon ? `<img class="wallet-icon" src="${esc(w.icon)}" alt="" />` : ""}${short(state.account)}`
+    : "Connect wallet";
+  els.launch.textContent = state.account ? "Launch coin" : "Connect wallet to launch";
+}
+
+function disconnect() {
+  state.account = state.wallet = state.client = state.provider = state.walletInfo = null;
+  rememberWallet(null);
+  setConnectedUi();
+  toast("Wallet disconnected");
+}
+
+// Connects a specific wallet. With silent, only reuses an existing approval.
+async function useWallet({ info, provider }, { silent = false } = {}) {
+  const method = silent ? "eth_accounts" : "eth_requestAccounts";
+  const [account] = await provider.request({ method });
+  if (!account) return false;
+  if (!silent) await ensureChain(provider);
+  state.provider = provider;
+  state.walletInfo = info;
   state.account = account;
   state.wallet = createWalletClient({ account, chain: robinhood, transport: custom(provider) });
   state.client = createPublicClient({ chain: robinhood, transport: custom(provider) });
-  els.connect.textContent = short(account);
-  els.launch.textContent = "Launch coin";
+  rememberWallet(info.rdns);
+  setConnectedUi();
   provider.on?.("accountsChanged", (accs) => {
-    state.account = accs[0] ?? null;
-    els.connect.textContent = state.account ? short(state.account) : "Connect wallet";
-    els.launch.textContent = state.account ? "Launch coin" : "Connect wallet to launch";
+    if (state.provider !== provider) return;
+    if (!accs[0]) return disconnect();
+    state.account = accs[0];
+    state.wallet = createWalletClient({ account: accs[0], chain: robinhood, transport: custom(provider) });
+    setConnectedUi();
   });
-  provider.on?.("chainChanged", () => location.reload());
+  provider.on?.("chainChanged", () => { if (state.provider === provider) location.reload(); });
   await loadTerms().catch((e) => toast("Couldn't read launch terms: " + (e.shortMessage || e.message)));
   return true;
 }
 
+async function connect() {
+  const choice = await pickWallet({
+    connected: state.account ? { info: state.walletInfo ?? { name: "Wallet" }, account: state.account } : null,
+  });
+  if (!choice) return false;
+  if (choice.disconnect) { disconnect(); return false; }
+  return useWallet(choice);
+}
+
 els.connect.addEventListener("click", () => connect().catch((e) => toast(e.shortMessage || e.message)));
+
+// Reconnect quietly to the wallet used last time, without a prompt.
+setTimeout(() => {
+  const last = lastWallet();
+  if (last && !state.account) useWallet(last, { silent: true }).catch(() => {});
+}, 300);
 
 // ---------- launch ----------
 function collectParams() {
