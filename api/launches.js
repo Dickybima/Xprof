@@ -2,10 +2,11 @@
 // SPIDERPAD launches exempt SPIDERPAD_MARKER from the snipe tax, so their
 // curves emit SnipeTaxExempted(marker); one log query finds them all. Coins
 // from earlier versions are found the same way through the fee vaults they
-// used (creator fee recipients are exempted at launch), plus LEGACY_TOKENS.
-import { createPublicClient, http, formatEther } from "../vendor/viem.js";
+// used (creator fee recipients are exempted at launch), plus LEGACY_TOKENS and
+// LEGACY_LAUNCH_TXS.
+import { createPublicClient, http, formatEther, decodeEventLog } from "../vendor/viem.js";
 import { robinhood, PONS, factoryAbi, curveAbi, tokenAbi, SPIDERPAD_MARKER } from "../pons.js";
-import { PAST_FEE_VAULTS, LEGACY_TOKENS } from "../config.js";
+import { PAST_FEE_VAULTS, LEGACY_TOKENS, LEGACY_LAUNCH_TXS } from "../config.js";
 
 export const config = { maxDuration: 60 };
 
@@ -57,7 +58,23 @@ async function scan() {
       const curve = log.args.curve.toLowerCase();
       if (!cache.curves.has(curve)) cache.curves.set(curve, { curve: log.args.curve, blockNumber: log.blockNumber, txHash: log.transactionHash });
     }
-    cache.legacyDone = true;
+  }
+  if (!cache.legacyDone) {
+    let complete = true;
+    for (const hash of LEGACY_LAUNCH_TXS) {
+      const receipt = await client.getTransactionReceipt({ hash }).catch(() => null);
+      if (!receipt) complete = false;
+      for (const log of receipt?.logs ?? []) {
+        if (log.address.toLowerCase() !== PONS.factory.toLowerCase()) continue;
+        try {
+          const ev = decodeEventLog({ abi: factoryAbi, data: log.data, topics: log.topics });
+          const curve = ev.eventName === "TokenLaunched" && ev.args.curve.toLowerCase();
+          if (curve && !cache.curves.has(curve)) cache.curves.set(curve, { curve: ev.args.curve, blockNumber: log.blockNumber, txHash: hash });
+        } catch {}
+      }
+    }
+    // Retry on the next request if a receipt couldn't be read.
+    cache.legacyDone = complete;
   }
 }
 
