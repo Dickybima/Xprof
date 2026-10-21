@@ -1,21 +1,25 @@
 // GET /api/launches — every coin launched through SPIDERPAD, newest first.
-// A SPIDERPAD coin is a Pons v2 launch whose salt carries our prefix, or one
-// from before that whose creator fees went to a past SPIDERPAD fee vault.
-import { createPublicClient, http, formatEther, decodeFunctionData } from "../vendor/viem.js";
-import { robinhood, PONS, factoryAbi, forwarderAbi, curveAbi, tokenAbi, isSpiderpadSalt } from "../pons.js";
-import { PAST_FEE_VAULTS } from "../config.js";
+// SPIDERPAD launches exempt SPIDERPAD_MARKER from the snipe tax, so their
+// curves emit SnipeTaxExempted(marker); one log query finds them all. Coins
+// from earlier versions are found the same way through the fee vaults they
+// used (creator fee recipients are exempted at launch), plus LEGACY_TOKENS.
+import { createPublicClient, http, formatEther } from "../vendor/viem.js";
+import { robinhood, PONS, factoryAbi, curveAbi, tokenAbi, SPIDERPAD_MARKER } from "../pons.js";
+import { PAST_FEE_VAULTS, LEGACY_TOKENS } from "../config.js";
+
+export const config = { maxDuration: 60 };
 
 const client = createPublicClient({
   chain: robinhood,
   transport: http(process.env.ROBINHOOD_RPC_URL || robinhood.rpcUrls.default.http[0], { timeout: 20_000 }),
 });
 
-const VAULTS = PAST_FEE_VAULTS.map((a) => a.toLowerCase());
+const exemptedEvent = curveAbi.find((x) => x.type === "event" && x.name === "SnipeTaxExempted");
 const launchedEvent = factoryAbi.find((x) => x.type === "event" && x.name === "TokenLaunched");
-const recipientEvent = factoryAbi.find((x) => x.type === "event" && x.name === "CreatorFeeRecipientUpdated");
+const MARKERS = [SPIDERPAD_MARKER, ...PAST_FEE_VAULTS];
 
-// Warm-instance cache: launches already classified and the last block scanned.
-const cache = { scannedTo: PONS.startBlock - 1n, launches: new Map(), claimed: new Set() };
+// Warm-instance cache of curves already found and the last block scanned.
+const cache = { scannedTo: PONS.startBlock - 1n, curves: new Map(), legacyDone: false };
 
 // eth_getLogs over a range, halving it whenever the RPC refuses the size.
 async function getLogsAdaptive(params, from, to) {
@@ -36,49 +40,31 @@ async function inBatches(items, size, fn) {
   return out;
 }
 
-// True when the launch transaction called the factory or forwarder directly
-// with a SPIDERPAD-prefixed salt.
-async function launchedWithOurSalt(hash) {
-  const tx = await client.getTransaction({ hash });
-  for (const abi of [factoryAbi, forwarderAbi]) {
-    try {
-      const { args } = decodeFunctionData({ abi, data: tx.input });
-      return isSpiderpadSalt(args[0]?.salt);
-    } catch {}
-  }
-  return false;
-}
-
 async function scan() {
   const latest = await client.getBlockNumber();
   const from = cache.scannedTo + 1n;
-  if (from > latest) return;
-
-  const [launched, ...handoffs] = await Promise.all([
-    getLogsAdaptive({ address: PONS.factory, event: launchedEvent }, from, latest),
-    // Coins whose fees already moved from a vault to their X owner.
-    ...VAULTS.map((v) => getLogsAdaptive({ address: PONS.factory, event: recipientEvent, args: { previousRecipient: v } }, from, latest)),
-  ]);
-  for (const log of handoffs.flat()) cache.claimed.add(log.args.token.toLowerCase());
-
-  const fresh = launched.filter((l) => !cache.launches.has(l.args.token.toLowerCase()));
-  await inBatches(fresh, 25, async (log) => {
-    const token = log.args.token.toLowerCase();
-    let ours = cache.claimed.has(token) || (await launchedWithOurSalt(log.transactionHash));
-    if (!ours && VAULTS.length) {
-      const info = await client.readContract({ address: PONS.factory, abi: factoryAbi, functionName: "getLaunchedToken", args: [log.args.token] });
-      ours = VAULTS.includes(info.creatorFeeRecipient.toLowerCase());
+  if (from <= latest) {
+    const logs = await getLogsAdaptive({ event: exemptedEvent, args: { account: MARKERS } }, from, latest);
+    for (const log of logs) {
+      const curve = log.address.toLowerCase();
+      if (!cache.curves.has(curve)) cache.curves.set(curve, { curve: log.address, blockNumber: log.blockNumber, txHash: log.transactionHash });
     }
-    cache.launches.set(token, { log, ours });
-  });
-  for (const [token, l] of cache.launches) if (cache.claimed.has(token)) l.ours = true;
-  cache.scannedTo = latest;
+    cache.scannedTo = latest;
+  }
+  if (!cache.legacyDone && LEGACY_TOKENS.length) {
+    const logs = await getLogsAdaptive({ address: PONS.factory, event: launchedEvent, args: { token: LEGACY_TOKENS } }, PONS.startBlock, latest);
+    for (const log of logs) {
+      const curve = log.args.curve.toLowerCase();
+      if (!cache.curves.has(curve)) cache.curves.set(curve, { curve: log.args.curve, blockNumber: log.blockNumber, txHash: log.transactionHash });
+    }
+    cache.legacyDone = true;
+  }
 }
 
-async function describe({ log }) {
-  const { token, curve, deployer } = log.args;
+async function describe({ curve, blockNumber, txHash }) {
   const read = (address, abi, functionName) => client.readContract({ address, abi, functionName });
-  const [name, symbol, logo, description, socials, supply, reserves, realQuote, graduated, block] = await Promise.all([
+  const token = await read(curve, curveAbi, "token");
+  const [name, symbol, logo, description, socials, supply, reserves, realQuote, threshold, graduated, block] = await Promise.all([
     read(token, tokenAbi, "name"),
     read(token, tokenAbi, "symbol"),
     read(token, tokenAbi, "logo").catch(() => ""),
@@ -87,20 +73,20 @@ async function describe({ log }) {
     read(token, tokenAbi, "totalSupply"),
     read(curve, curveAbi, "getReserves").catch(() => null),
     read(curve, curveAbi, "realQuoteReserve").catch(() => 0n),
+    read(curve, curveAbi, "graduationThreshold").catch(() => 0n),
     read(curve, curveAbi, "graduated").catch(() => false),
-    client.getBlock({ blockNumber: log.blockNumber }).catch(() => null),
+    client.getBlock({ blockNumber }).catch(() => null),
   ]);
   const twitter = socials[0] || "";
   const handle = (twitter.match(/(?:x|twitter)\.com\/([A-Za-z0-9_]{1,15})/i) || [])[1] || null;
-  const threshold = log.args.graduationThreshold;
   // Spot price on the curve, in ETH per token.
   const priceEth = reserves && reserves[1] > 0n ? Number(formatEther(reserves[0])) / Number(formatEther(reserves[1])) : 0;
   return {
-    token, curve, deployer, name, symbol, logo, description, handle, twitter,
+    token, curve, name, symbol, logo, description, handle, twitter,
     website: socials[3] || "",
     createdAt: block ? Number(block.timestamp) : null,
-    blockNumber: Number(log.blockNumber),
-    txHash: log.transactionHash,
+    blockNumber: Number(blockNumber),
+    txHash,
     priceEth,
     marketCapEth: priceEth * Number(formatEther(supply)),
     raisedEth: Number(formatEther(realQuote)),
@@ -113,8 +99,8 @@ async function describe({ log }) {
 export default async function handler(req, res) {
   try {
     await scan();
-    const ours = [...cache.launches.values()].filter((l) => l.ours).sort((a, b) => Number(b.log.blockNumber - a.log.blockNumber));
-    const launches = await inBatches(ours.slice(0, 200), 20, describe);
+    const curves = [...cache.curves.values()].sort((a, b) => Number(b.blockNumber - a.blockNumber)).slice(0, 200);
+    const launches = (await inBatches(curves, 20, (c) => describe(c).catch(() => null))).filter(Boolean);
     res.setHeader("Cache-Control", "s-maxage=30, stale-while-revalidate=300");
     res.status(200).json({ launches, scannedTo: Number(cache.scannedTo) });
   } catch (err) {

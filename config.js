@@ -5,6 +5,10 @@ export const PAST_FEE_VAULTS = [
   "0x2E87D16561ffE0857eAaF5A227Fa046dAe2d3067",
 ];
 
+// Coins launched on SPIDERPAD before launches carried the Explore marker.
+// Add their token addresses here so they show up in Explore.
+export const LEGACY_TOKENS = [];
+
 // SPIDERPAD's own X account, linked from the X button in the nav.
 // Replace with the real profile, e.g. "https://x.com/spiderpad".
 export const SPIDERPAD_X_URL = "https://x.com";

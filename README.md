@@ -15,7 +15,7 @@ Every launch sets `creatorFeeRecipient` to the wallet that signs the launch, so 
 
 ## Explore
 
-`explore.html` lists every coin launched through SPIDERPAD, newest first, with market cap, bonding progress, search and sorting. It reads `/api/launches`, a Vercel function (`api/launches.js`) that scans the factory's `TokenLaunched` logs on Robinhood Chain and keeps launches whose transaction used a `SPIDERPAD`-prefixed salt, plus coins from earlier versions whose fees went to a past SPIDERPAD fee vault (`PAST_FEE_VAULTS` in `config.js`). Responses are CDN-cached for 30 seconds. Set `ROBINHOOD_RPC_URL` in Vercel to use a dedicated RPC instead of the public one.
+`explore.html` lists every coin launched through SPIDERPAD, newest first, with market cap, bonding progress, search and sorting. It reads `/api/launches`, a Vercel function (`api/launches.js`). Every SPIDERPAD launch exempts `SPIDERPAD_MARKER` (`pons.js`) from the curve's snipe tax, so the curve emits `SnipeTaxExempted(marker)`; one log query over Robinhood Chain finds every SPIDERPAD coin. Coins from earlier versions are found through the fee vaults they used (`PAST_FEE_VAULTS`) or listed by token address in `LEGACY_TOKENS` (`config.js`). Responses are CDN-cached for 30 seconds. Set `ROBINHOOD_RPC_URL` in Vercel to use a dedicated RPC instead of the public one.
 
 ## Features
 - Paste an X handle (or `x.com/...` URL) to tokenize it — opens a token card with price, market cap, bonding progress and buy/sell.

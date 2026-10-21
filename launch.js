@@ -2,7 +2,7 @@ import {
   createPublicClient, createWalletClient, custom, http, parseEther, formatEther,
   decodeEventLog, zeroAddress, isAddress,
 } from "./vendor/viem.js";
-import { robinhood, PONS, factoryAbi, forwarderAbi, quoteOpeningBuy, applySlippage, randomSalt } from "./pons.js";
+import { robinhood, PONS, factoryAbi, forwarderAbi, quoteOpeningBuy, applySlippage, randomSalt, SPIDERPAD_MARKER } from "./pons.js";
 import { pickWallet, lastWallet, rememberWallet } from "./wallets.js";
 
 const $ = (s) => document.querySelector(s);
@@ -294,13 +294,13 @@ async function launch() {
       const minOut = applySlippage(quoteOpeningBuy(terms.config, buy), SLIPPAGE_BPS);
       ({ request } = await state.client.simulateContract({
         account: state.account, address: PONS.forwarder, abi: forwarderAbi, functionName: "launchAndBuy",
-        args: [params, terms.configId, zeroAddress, buy, minOut, state.account, []],
+        args: [params, terms.configId, zeroAddress, buy, minOut, state.account, [SPIDERPAD_MARKER]],
         value: terms.launchFee + buy,
       }));
     } else {
       ({ request } = await state.client.simulateContract({
         account: state.account, address: PONS.factory, abi: factoryAbi, functionName: "launchToken",
-        args: [params, terms.configId, zeroAddress, []],
+        args: [params, terms.configId, zeroAddress, [SPIDERPAD_MARKER]],
         value: terms.launchFee,
       }));
     }

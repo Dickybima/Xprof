@@ -39,9 +39,12 @@ export const factoryAbi = parseAbi([
 ]);
 
 export const curveAbi = parseAbi([
+  "function token() view returns (address)",
+  "function graduationThreshold() view returns (uint256)",
   "function getReserves() view returns (uint256 quoteReserve, uint256 tokenReserve)",
   "function realQuoteReserve() view returns (uint256)",
   "function graduated() view returns (bool)",
+  "event SnipeTaxExempted(address indexed account)",
 ]);
 
 export const tokenAbi = parseAbi([
@@ -76,8 +79,8 @@ export function quoteOpeningBuy(config, amountIn, creatorTaxBps = 0n) {
 
 export const applySlippage = (amount, bps) => (amount * (BPS - BigInt(bps))) / BPS;
 
-// Every SPIDERPAD launch salt starts with "SPIDERPAD" in ASCII, so Explore can
-// recognise our launches from the transaction input. The rest stays random.
+// Every SPIDERPAD launch salt starts with "SPIDERPAD" in ASCII, marking the
+// launch in its transaction input. The rest stays random.
 export const SALT_PREFIX = "0x535049444552504144";
 
 export function randomSalt() {
@@ -85,4 +88,8 @@ export function randomSalt() {
   return SALT_PREFIX + [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-export const isSpiderpadSalt = (salt) => typeof salt === "string" && salt.toLowerCase().startsWith(SALT_PREFIX);
+// Every SPIDERPAD launch adds this address to the curve's snipe-tax exemption
+// list. The curve then emits SnipeTaxExempted(marker), which lets Explore find
+// all SPIDERPAD coins with a single log query. It is "SPIDERPAD" in ASCII,
+// padded with zeros, so no one holds its key.
+export const SPIDERPAD_MARKER = "0x5350494445525041440000000000000000000000";
