@@ -18,11 +18,8 @@ html { scroll-behavior: smooth; }
 body {
   margin: 0;
   background: var(--bg);
-  background-image:
-    radial-gradient(900px 500px at 50% -10%, rgba(255,255,255,0.07), transparent 60%),
-    linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
-  background-size: auto, 48px 48px, 48px 48px;
+  background-image: radial-gradient(1000px 600px at 50% 30%, rgba(57,255,20,0.06), transparent 70%);
+  background-attachment: fixed;
   color: var(--text);
   font-family: Inter, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -250,3 +247,13 @@ dialog::backdrop { background: rgba(0,0,0,.7); backdrop-filter: blur(4px); }
 .lock { font-size: 11px; color: var(--muted); font-weight: 500; margin-left: 6px; }
 .fee-owner { display: flex; gap: 12px; align-items: center; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; font-size: 13.5px; line-height: 1.5; }
 .fee-owner img { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+
+/* animated neon web background */
+#web-bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+.nav, .ticker, main, .footer, .toast { position: relative; z-index: 1; }
+.nav { position: sticky; z-index: 20; }
+.toast { position: fixed; z-index: 50; }
+.ticker { background: rgba(13,13,15,0.8); backdrop-filter: blur(6px); }
+.panel, .table-wrap, .card, .step, .faq details, .stats, .tokenize { background-color: rgba(13,13,15,0.82); backdrop-filter: blur(6px); }
+.hero h1, .hero .sub, .hero .hint, .launch-title, .sub.left { text-shadow: 0 2px 18px #000, 0 0 6px #000; }
+[hidden] { display: none !important; }
