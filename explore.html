@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Explore · SPIDERPAD</title>
+  <link rel="icon" href="logo.svg" type="image/svg+xml" />
+  <meta name="description" content="Every X profile coin launched on SPIDERPAD." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="nav">
+    <a class="brand" href="index.html"><img class="logo-mark" src="logo.svg" alt="" width="36" height="36" /><span class="wordmark">SPIDER<span>PAD</span></span></a>
+    <nav class="links">
+      <a href="index.html#top">Top Profiles</a>
+      <a href="explore.html" class="active">Explore</a>
+      <a href="launch.html">Launch</a>
+      <a href="index.html#how">How it works</a>
+    </nav>
+    <div class="wallet">
+      <span class="chain-chip"><span class="chain-dot"></span>Robinhood</span>
+      <a class="btn btn-ghost x-link" href="https://x.com" target="_blank" rel="noopener" aria-label="SPIDERPAD on X" title="Follow SPIDERPAD on X"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>
+      <a class="btn btn-ghost" href="launch.html" style="text-decoration:none">Launch a coin</a>
+    </div>
+  </header>
+
+  <main class="explore">
+    <div class="explore-head">
+      <div>
+        <h1 class="launch-title">Explore <span class="dim">profile coins</span></h1>
+        <p class="sub left">Every 𝕏 profile coin launched on SPIDERPAD, straight from Robinhood Chain.</p>
+      </div>
+      <div class="controls">
+        <input id="search" type="search" placeholder="Search name, ticker or @handle…" aria-label="Search coins" />
+        <div class="tabs" role="tablist">
+          <button class="tab active" data-sort="new">New</button>
+          <button class="tab" data-sort="mcap">Market cap</button>
+          <button class="tab" data-sort="progress">Bonding</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="coin-grid" id="grid">
+      <div class="explore-empty">Loading launches from Robinhood Chain…</div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <span>© <span id="year"></span> SPIDERPAD. Not affiliated with X Corp.</span>
+    <span class="muted">Data read live from Robinhood Chain.</span>
+  </footer>
+
+  <script src="bg.js"></script>
+  <script type="module" src="nav.js"></script>
+  <script type="module" src="explore.js"></script>
+</body>
+</html>

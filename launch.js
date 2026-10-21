@@ -293,7 +293,7 @@ async function launch() {
         ? `🚀 <b>$${esc(params.symbol)}</b> is live on Robinhood Chain. Creator fees are reserved for <b>@${esc(state.profile.handle)}</b>.<br>
            Token: <a href="${ex}/address/${launched.token}" target="_blank" rel="noopener">${short(launched.token)} ↗</a> ·
            Curve: <a href="${ex}/address/${launched.curve}" target="_blank" rel="noopener">${short(launched.curve)} ↗</a><br>
-           <a href="https://ponsfamily.com" target="_blank" rel="noopener">Trade ↗</a> · <a href="${txUrl}" target="_blank" rel="noopener">Transaction ↗</a>`
+           <a href="explore.html">View in Explore →</a> · <a href="https://ponsfamily.com" target="_blank" rel="noopener">Trade ↗</a> · <a href="${txUrl}" target="_blank" rel="noopener">Transaction ↗</a>`
         : `Launched. <a href="${txUrl}" target="_blank" rel="noopener">View transaction ↗</a>`,
       "ok",
     );

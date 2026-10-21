@@ -23,6 +23,10 @@ The connected wallet signs one transaction on Robinhood Chain (chain ID 4663):
 
 Economics are pinned with `previewLaunchEconomics`, and every launch is simulated before the wallet prompt. Addresses and ABI come from the reviewed [Reptilian Pons SDK](https://github.com/ReptilianHQ/ponsfamily/tree/main/sdk) (ABI revision `pons-v2-836f0f97`). `vendor/viem.js` is a local esbuild bundle of viem 2.38.0.
 
+## Explore
+
+`explore.html` lists every coin launched through SPIDERPAD, newest first, with market cap, bonding progress, search and sorting. It reads `/api/launches`, a Vercel function (`api/launches.js`) that scans the factory's `TokenLaunched` logs on Robinhood Chain and keeps launches whose creator fees go to a SPIDERPAD vault (`XPROF_FEE_VAULT` or `PAST_FEE_VAULTS`), including coins whose fees were already handed to their X owner. Responses are CDN-cached for 30 seconds. Set `ROBINHOOD_RPC_URL` in Vercel to use a dedicated RPC instead of the public one.
+
 ## Features
 - Paste an X handle (or `x.com/...` URL) to tokenize it — opens a token card with price, market cap, bonding progress and buy/sell.
 - Top 3 podium with sparklines and a sortable/searchable leaderboard (market cap, gainers, followers, volume).
