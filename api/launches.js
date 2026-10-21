@@ -6,7 +6,7 @@
 // LEGACY_LAUNCH_TXS.
 import { createPublicClient, http, formatEther, decodeEventLog } from "../vendor/viem.js";
 import { robinhood, PONS, factoryAbi, curveAbi, tokenAbi, SPIDERPAD_MARKER } from "../pons.js";
-import { PAST_FEE_VAULTS, LEGACY_TOKENS, LEGACY_LAUNCH_TXS } from "../config.js";
+import { PAST_FEE_VAULTS, LEGACY_TOKENS, LEGACY_LAUNCH_TXS, EXPLORE_HIDE_BEFORE, HIDDEN_TOKENS } from "../config.js";
 
 export const config = { maxDuration: 60 };
 
@@ -151,7 +151,10 @@ export default async function handler(req, res) {
   try {
     const complete = await scan(deadline);
     const curves = [...cache.curves.values()].sort((a, b) => Number(b.blockNumber - a.blockNumber)).slice(0, 200);
-    const launches = (await inBatches(curves, 20, (c) => describe(c).catch(() => null))).filter(Boolean);
+    const hideBefore = Date.parse(EXPLORE_HIDE_BEFORE) / 1000 || 0;
+    const hidden = new Set(HIDDEN_TOKENS.map((t) => t.toLowerCase()));
+    const launches = (await inBatches(curves, 20, (c) => describe(c).catch(() => null)))
+      .filter((l) => l && !hidden.has(l.token.toLowerCase()) && !(l.createdAt && l.createdAt < hideBefore));
     // A partial scan is cached only briefly so the next request continues it.
     res.setHeader("Cache-Control", complete ? "s-maxage=30, stale-while-revalidate=300" : "no-store");
     res.status(200).json({ launches, complete, scannedTo: Number(cache.scannedTo) });

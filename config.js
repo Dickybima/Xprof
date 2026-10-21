@@ -8,9 +8,14 @@ export const PAST_FEE_VAULTS = [
 // Coins launched on SPIDERPAD before launches carried the Explore marker.
 // List them by token address or by launch transaction hash.
 export const LEGACY_TOKENS = [];
-export const LEGACY_LAUNCH_TXS = [
-  "0x5fc6be672d21fe01ba12b42cb9863a2bd329b9b2b9c9271ea3dd4e494f8c2a81",
-];
+export const LEGACY_LAUNCH_TXS = [];
+
+// Test launches made before SPIDERPAD went live stay on-chain but are hidden
+// from Explore: anything launched before this time (UTC) is left out.
+export const EXPLORE_HIDE_BEFORE = "2026-10-21T18:46:00Z";
+
+// Individual coins to hide from Explore, by token address.
+export const HIDDEN_TOKENS = [];
 
 // Creator tax charged on top of the Pons curve fee (1%), paid entirely to the
 // launcher: 200 bps makes the total trading fee 3%. Capped on-chain by the
