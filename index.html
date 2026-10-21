@@ -16,10 +16,11 @@
     </a>
     <nav class="links">
       <a href="#top">Top Profiles</a>
+      <a href="launch.html">Launch</a>
       <a href="#how">How it works</a>
       <a href="#faq">FAQ</a>
     </nav>
-    <button class="btn btn-ghost" id="connectBtn">Connect wallet</button>
+    <a class="btn btn-ghost" href="launch.html" style="text-decoration:none">Launch a coin</a>
   </header>
 
   <div class="ticker" aria-label="Live trades">
@@ -28,9 +29,9 @@
 
   <main>
     <section class="hero">
-      <div class="pill"><span class="dot"></span> Live on Solana</div>
+      <div class="pill"><span class="dot"></span> Launching on Pons v2 · Robinhood Chain</div>
       <h1>Tokenize any <span class="x">𝕏</span> profile.</h1>
-      <p class="sub">Every account on X can become a token. Paste a handle, launch it on a bonding curve, and trade the people you believe in before the timeline catches up.</p>
+      <p class="sub">Every account on X can become a token. Paste a handle, launch it on the Pons v2 bonding curve, and trade the people you believe in before the timeline catches up.</p>
 
       <form class="tokenize" id="tokenizeForm" autocomplete="off">
         <span class="at">@</span>
@@ -90,17 +91,17 @@
         <div class="step">
           <span class="n">01</span>
           <h3>Paste a handle</h3>
-          <p>Drop any X username. We pull the profile, followers and avatar to mint its token — ticker included.</p>
+          <p>Drop any X username. We pull the name, avatar and bio and prefill the coin — ticker included. Everything stays editable.</p>
         </div>
         <div class="step">
           <span class="n">02</span>
           <h3>Launch on a curve</h3>
-          <p>Each profile starts on a fair bonding curve. No presale, no team allocation — the price moves with every buy and sell.</p>
+          <p>Your wallet signs one transaction to the Pons v2 factory on Robinhood Chain. The full supply goes into a fair bonding curve priced in ETH.</p>
         </div>
         <div class="step">
           <span class="n">03</span>
           <h3>Graduate</h3>
-          <p>When the curve fills, liquidity migrates to a DEX and the profile owner can claim creator fees by verifying their X account.</p>
+          <p>When the curve fills, it graduates into a permanently locked Uniswap V4 pool. Creator fees flow to the recipient you chose from the first trade.</p>
         </div>
       </div>
     </section>
@@ -115,7 +116,7 @@
 
   <footer class="footer">
     <span>© <span id="year"></span> Xprof. Not affiliated with X Corp.</span>
-    <span class="muted">Demo data — prices are simulated.</span>
+    <span class="muted">Leaderboard prices are simulated. Launches are real Pons v2 transactions.</span>
   </footer>
 
   <dialog id="modal">

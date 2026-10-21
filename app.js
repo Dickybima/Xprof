@@ -175,6 +175,7 @@
         <button type="button" class="btn btn-buy" data-act="buy">Buy</button>
         <button type="button" class="btn btn-sell" data-act="sell">Sell</button>
       </div>
+      <a class="btn btn-primary" style="text-align:center;text-decoration:none" href="launch.html?handle=${encodeURIComponent(t.handle)}&source=x">Launch @${t.handle} on Pons v2 →</a>
       <a class="handle" href="https://x.com/${t.handle}" target="_blank" rel="noopener">View @${t.handle} on X ↗</a>`;
     modal.showModal();
     sparkline($(".chart", modal), t.history, d.change >= 0);
@@ -207,16 +208,7 @@
     e.preventDefault();
     const raw = $("#handleInput").value.trim().replace(/^@/, "").replace(/^https?:\/\/(www\.)?(x|twitter)\.com\//i, "").split(/[/?]/)[0];
     if (!/^[A-Za-z0-9_]{1,15}$/.test(raw)) return toast("Enter a valid X handle");
-    let t = byHandle(raw);
-    if (t) return openToken(t);
-    const r = seeded(raw);
-    t = makeToken({ handle: raw, name: raw, followers: Math.round(500 + r() * 50_000), verified: false, bio: "" });
-    t.mcap = 4_000; t.open = 4_000; t.history = [4_000, 4_000]; t.volume = 0; t.holders = 1;
-    tokens.push(t);
-    $("#handleInput").value = "";
-    renderBoard({ [t.handle]: 1 });
-    renderStats();
-    openToken(t, true);
+    location.href = `launch.html?handle=${encodeURIComponent(raw)}&source=x`;
   });
 
   $$("[data-try]").forEach((a) => a.addEventListener("click", (e) => {
@@ -241,7 +233,6 @@
   $("#podium").addEventListener("click", openFrom);
   modal.addEventListener("click", (e) => { if (e.target === modal) modal.close(); });
 
-  $("#connectBtn").addEventListener("click", () => toast("Wallet connection is not enabled in this demo"));
 
   // simulated live market
   setInterval(() => {

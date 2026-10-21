@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Launch · Xprof</title>
+  <meta name="description" content="Launch your X profile coin on the Pons v2 bonding curve." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="nav">
+    <a class="brand" href="index.html"><span class="logo">𝕏</span><span>prof</span></a>
+    <nav class="links">
+      <a href="index.html#top">Top Profiles</a>
+      <a href="launch.html" class="active">Launch</a>
+      <a href="index.html#how">How it works</a>
+    </nav>
+    <div class="wallet">
+      <span class="chain-chip"><span class="chain-dot"></span>Robinhood</span>
+      <button class="btn btn-ghost" id="connectBtn">Connect wallet</button>
+    </div>
+  </header>
+
+  <main class="launch">
+    <h1 class="launch-title">Launch your <span class="dim">profile coin</span></h1>
+    <p class="sub left">Detect it from any 𝕏 profile, tune every field, then launch on the Pons v2 bonding curve on Robinhood Chain. Your wallet signs the transaction. Nothing is custodied.</p>
+
+    <div class="launch-grid">
+      <!-- Step 1 -->
+      <section class="panel">
+        <div class="panel-head"><span class="step-n">1</span>YOUR PROFILE</div>
+
+        <div class="seg">
+          <button type="button" class="seg-btn active"><span class="x-ico">𝕏</span> @X</button>
+        </div>
+
+        <p class="note">Drop an 𝕏 handle and detect the profile. We pull the name, avatar and bio straight from X. Everything stays editable before you launch.</p>
+
+        <label class="field-label" for="handle">Handle</label>
+        <div class="input-at"><span>@</span><input id="handle" class="input" placeholder="elonmusk" maxlength="15" autocomplete="off" /></div>
+
+        <button class="btn btn-primary btn-block" id="detectBtn" type="button">Detect profile</button>
+
+        <div class="detected" id="detected" hidden></div>
+
+        <label class="field-label" for="displayName">Display name (optional)</label>
+        <input id="displayName" class="input" maxlength="64" />
+
+        <label class="field-label" for="bio">Bio (optional)</label>
+        <textarea id="bio" class="input" rows="3" maxlength="2048"></textarea>
+
+        <p class="fine">Detect fills these from X, or type them in by hand. Set the coin name, ticker and avatar on the right, then launch.</p>
+      </section>
+
+      <!-- Step 2 -->
+      <section class="panel">
+        <div class="panel-head"><span class="step-n">2</span>REVIEW AND LAUNCH</div>
+
+        <label class="field-label">Launch on</label>
+        <div class="seg">
+          <button type="button" class="seg-btn active"><span class="pons-ico">P</span> Pons v2 · Robinhood</button>
+        </div>
+
+        <div class="avatar-row">
+          <img id="logoPreview" class="logo-preview" alt="" />
+          <div class="avatar-actions">
+            <label class="btn btn-ghost" for="logoFile">Replace avatar</label>
+            <input type="file" id="logoFile" accept="image/png,image/jpeg,image/webp" hidden />
+            <p class="fine">Uses the X avatar URL on-chain. Uploads are auto-compressed for on-chain use.</p>
+          </div>
+        </div>
+
+        <div class="two">
+          <div>
+            <label class="field-label" for="coinName">Coin name</label>
+            <input id="coinName" class="input" maxlength="64" />
+          </div>
+          <div>
+            <label class="field-label" for="ticker">Ticker</label>
+            <input id="ticker" class="input mono" maxlength="16" />
+          </div>
+        </div>
+
+        <label class="field-label" for="hook">One-line hook</label>
+        <input id="hook" class="input" maxlength="2048" />
+
+        <label class="field-label">Paired asset (quote)</label>
+        <div class="input static"><span class="eth-ico">◆</span> <b>ETH</b> <span class="muted">Ether</span></div>
+
+        <div class="two">
+          <div>
+            <label class="field-label" for="twitter">X / Twitter</label>
+            <input id="twitter" class="input" placeholder="https://x.com/..." maxlength="256" />
+          </div>
+          <div>
+            <label class="field-label" for="website">Website (optional)</label>
+            <input id="website" class="input" placeholder="https://..." maxlength="256" />
+          </div>
+        </div>
+
+        <label class="field-label" for="feeRecipient">Creator fee recipient</label>
+        <input id="feeRecipient" class="input mono" placeholder="Defaults to your connected wallet" />
+
+        <div class="two">
+          <div>
+            <label class="field-label" for="initialBuy">Initial buy (ETH, optional)</label>
+            <input id="initialBuy" class="input mono" type="number" min="0" step="0.001" placeholder="0.0" />
+          </div>
+          <label class="check"><input type="checkbox" id="buyback" checked /> Enable protocol buybacks</label>
+        </div>
+
+        <div class="model" id="model">
+          <div><span>Launch model</span><b>Pons v2 · bonding curve</b></div>
+          <div><span>Launch fee</span><b id="mFee">—</b></div>
+          <div><span>Curve fee</span><b id="mCurveFee">—</b></div>
+          <div><span>Graduates at</span><b id="mGrad">—</b></div>
+          <div><span>Supply</span><b id="mSupply">—</b></div>
+          <div><span>Est. tokens from initial buy</span><b id="mOut">—</b></div>
+        </div>
+
+        <button class="btn btn-primary btn-block" id="launchBtn" type="button">Connect wallet to launch</button>
+        <div class="status" id="status" hidden></div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <span>© <span id="year"></span> Xprof. Not affiliated with X Corp or Pons.</span>
+    <span class="muted">Launches are real on-chain transactions on Robinhood Chain.</span>
+  </footer>
+
+  <div class="toast" id="toast" role="status"></div>
+  <script type="module" src="launch.js"></script>
+</body>
+</html>
