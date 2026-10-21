@@ -71,10 +71,16 @@ function render() {
 async function load() {
   try {
     const res = await fetch("/api/launches");
-    const data = await res.json();
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch { throw new Error(`server error ${res.status}${text ? ` — ${text.slice(0, 80)}` : ""}`); }
     if (!res.ok) throw new Error(data.error || res.statusText);
     launches = data.launches;
-    render();
+    if (!data.complete && !launches.length) {
+      $("#grid").innerHTML = `<div class="explore-empty">Scanning Robinhood Chain for SPIDERPAD launches…</div>`;
+    } else render();
+    // The server scans in steps; keep going until it reaches the chain head.
+    if (!data.complete) setTimeout(load, 3000);
   } catch (err) {
     $("#grid").innerHTML = `<div class="explore-empty">Couldn't load launches: ${esc(err.message)}. <a href="#" id="retry">Retry</a></div>`;
     $("#retry").addEventListener("click", (e) => { e.preventDefault(); load(); });

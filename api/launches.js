@@ -12,7 +12,7 @@ export const config = { maxDuration: 60 };
 
 const client = createPublicClient({
   chain: robinhood,
-  transport: http(process.env.ROBINHOOD_RPC_URL || robinhood.rpcUrls.default.http[0], { timeout: 20_000 }),
+  transport: http(process.env.ROBINHOOD_RPC_URL || robinhood.rpcUrls.default.http[0], { timeout: 15_000, retryCount: 1 }),
 });
 
 const exemptedEvent = curveAbi.find((x) => x.type === "event" && x.name === "SnipeTaxExempted");
@@ -20,19 +20,55 @@ const launchedEvent = factoryAbi.find((x) => x.type === "event" && x.name === "T
 const MARKERS = [SPIDERPAD_MARKER, ...PAST_FEE_VAULTS];
 
 // Warm-instance cache of curves already found and the last block scanned.
-const cache = { scannedTo: PONS.startBlock - 1n, curves: new Map(), legacyDone: false };
+// No SPIDERPAD coin is older than this, so scans start here instead of at the
+// factory's first block (tens of millions of blocks back).
+const SPIDERPAD_SINCE = Date.UTC(2026, 9, 20) / 1000;
+const WINDOW = 250_000n; // blocks per eth_getLogs request
+const PARALLEL = 4;
+const TIME_BUDGET_MS = 40_000; // stay well inside maxDuration
+
+// Warm-instance cache of curves already found and the last block scanned.
+const cache = { scannedTo: null, curves: new Map(), legacyDone: false };
+
+const addCurve = (curve, blockNumber, txHash) => {
+  const key = curve.toLowerCase();
+  if (!cache.curves.has(key)) cache.curves.set(key, { curve, blockNumber, txHash });
+};
+
+// Estimates the first block at or after SPIDERPAD_SINCE from the chain's
+// recent block rate, then steps back until it is safely before that time.
+async function firstBlockToScan(latest) {
+  const head = await client.getBlock({ blockNumber: latest });
+  const probe = latest > 500_000n ? latest - 500_000n : PONS.startBlock;
+  const old = await client.getBlock({ blockNumber: probe });
+  const perSecond = Number(latest - probe) / Math.max(1, Number(head.timestamp - old.timestamp));
+  let guess = latest - BigInt(Math.ceil(perSecond * (Number(head.timestamp) - SPIDERPAD_SINCE) * 1.05));
+  for (let i = 0; i < 6 && guess > PONS.startBlock; i++) {
+    const b = await client.getBlock({ blockNumber: guess });
+    if (Number(b.timestamp) <= SPIDERPAD_SINCE) break;
+    guess -= BigInt(Math.ceil(perSecond * (Number(b.timestamp) - SPIDERPAD_SINCE) * 1.2)) + 1000n;
+  }
+  return guess < PONS.startBlock ? PONS.startBlock : guess;
+}
 
 // eth_getLogs over a range, halving it whenever the RPC refuses the size.
 async function getLogsAdaptive(params, from, to) {
   try {
     return await client.getLogs({ ...params, fromBlock: from, toBlock: to });
   } catch (err) {
-    if (to - from < 1n) throw err;
+    if (to - from < 2_000n) throw err;
     const mid = from + (to - from) / 2n;
-    const a = await getLogsAdaptive(params, from, mid);
-    const b = await getLogsAdaptive(params, mid + 1n, to);
+    const [a, b] = await Promise.all([getLogsAdaptive(params, from, mid), getLogsAdaptive(params, mid + 1n, to)]);
     return a.concat(b);
   }
+}
+
+async function scanWindow(from, to) {
+  const jobs = [getLogsAdaptive({ event: exemptedEvent, args: { account: MARKERS } }, from, to)];
+  if (LEGACY_TOKENS.length) jobs.push(getLogsAdaptive({ address: PONS.factory, event: launchedEvent, args: { token: LEGACY_TOKENS } }, from, to));
+  const [exempted, legacy = []] = await Promise.all(jobs);
+  for (const log of exempted) addCurve(log.address, log.blockNumber, log.transactionHash);
+  for (const log of legacy) addCurve(log.args.curve, log.blockNumber, log.transactionHash);
 }
 
 async function inBatches(items, size, fn) {
@@ -41,24 +77,12 @@ async function inBatches(items, size, fn) {
   return out;
 }
 
-async function scan() {
+// Scans new blocks window by window until done or out of time. Returns true
+// when the scan reached the chain head.
+async function scan(deadline) {
   const latest = await client.getBlockNumber();
-  const from = cache.scannedTo + 1n;
-  if (from <= latest) {
-    const logs = await getLogsAdaptive({ event: exemptedEvent, args: { account: MARKERS } }, from, latest);
-    for (const log of logs) {
-      const curve = log.address.toLowerCase();
-      if (!cache.curves.has(curve)) cache.curves.set(curve, { curve: log.address, blockNumber: log.blockNumber, txHash: log.transactionHash });
-    }
-    cache.scannedTo = latest;
-  }
-  if (!cache.legacyDone && LEGACY_TOKENS.length) {
-    const logs = await getLogsAdaptive({ address: PONS.factory, event: launchedEvent, args: { token: LEGACY_TOKENS } }, PONS.startBlock, latest);
-    for (const log of logs) {
-      const curve = log.args.curve.toLowerCase();
-      if (!cache.curves.has(curve)) cache.curves.set(curve, { curve: log.args.curve, blockNumber: log.blockNumber, txHash: log.transactionHash });
-    }
-  }
+  if (cache.scannedTo == null) cache.scannedTo = (await firstBlockToScan(latest)) - 1n;
+
   if (!cache.legacyDone) {
     let complete = true;
     for (const hash of LEGACY_LAUNCH_TXS) {
@@ -68,14 +92,23 @@ async function scan() {
         if (log.address.toLowerCase() !== PONS.factory.toLowerCase()) continue;
         try {
           const ev = decodeEventLog({ abi: factoryAbi, data: log.data, topics: log.topics });
-          const curve = ev.eventName === "TokenLaunched" && ev.args.curve.toLowerCase();
-          if (curve && !cache.curves.has(curve)) cache.curves.set(curve, { curve: ev.args.curve, blockNumber: log.blockNumber, txHash: hash });
+          if (ev.eventName === "TokenLaunched") addCurve(ev.args.curve, log.blockNumber, hash);
         } catch {}
       }
     }
     // Retry on the next request if a receipt couldn't be read.
     cache.legacyDone = complete;
   }
+
+  while (cache.scannedTo < latest && Date.now() < deadline) {
+    const windows = [];
+    for (let from = cache.scannedTo + 1n; from <= latest && windows.length < PARALLEL; from += WINDOW) {
+      windows.push([from, from + WINDOW - 1n < latest ? from + WINDOW - 1n : latest]);
+    }
+    await Promise.all(windows.map(([f, t]) => scanWindow(f, t)));
+    cache.scannedTo = windows[windows.length - 1][1];
+  }
+  return cache.scannedTo >= latest;
 }
 
 async function describe({ curve, blockNumber, txHash }) {
@@ -114,13 +147,16 @@ async function describe({ curve, blockNumber, txHash }) {
 }
 
 export default async function handler(req, res) {
+  const deadline = Date.now() + TIME_BUDGET_MS;
   try {
-    await scan();
+    const complete = await scan(deadline);
     const curves = [...cache.curves.values()].sort((a, b) => Number(b.blockNumber - a.blockNumber)).slice(0, 200);
     const launches = (await inBatches(curves, 20, (c) => describe(c).catch(() => null))).filter(Boolean);
-    res.setHeader("Cache-Control", "s-maxage=30, stale-while-revalidate=300");
-    res.status(200).json({ launches, scannedTo: Number(cache.scannedTo) });
+    // A partial scan is cached only briefly so the next request continues it.
+    res.setHeader("Cache-Control", complete ? "s-maxage=30, stale-while-revalidate=300" : "no-store");
+    res.status(200).json({ launches, complete, scannedTo: Number(cache.scannedTo) });
   } catch (err) {
+    res.setHeader("Cache-Control", "no-store");
     res.status(502).json({ error: err.shortMessage || err.message || "Couldn't read Robinhood Chain" });
   }
 }
