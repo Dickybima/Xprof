@@ -208,7 +208,7 @@ async function connect() {
     els.launch.textContent = state.account ? "Launch coin" : "Connect wallet to launch";
   });
   provider.on?.("chainChanged", () => location.reload());
-  await loadTerms().catch((e) => toast("Couldn't read Pons terms: " + (e.shortMessage || e.message)));
+  await loadTerms().catch((e) => toast("Couldn't read launch terms: " + (e.shortMessage || e.message)));
   return true;
 }
 
@@ -244,10 +244,10 @@ async function launch() {
     const base = collectParams();
     setStatus("Reading live launch terms…");
     const terms = await loadTerms();
-    if (!terms.launchEnabled) throw new Error("Pons launches are currently paused");
-    if (terms.configId == null) throw new Error("No enabled Pons launch config");
+    if (!terms.launchEnabled) throw new Error("Launches are currently paused");
+    if (terms.configId == null) throw new Error("No launch config is enabled right now");
     const canLaunch = await state.client.readContract({ address: PONS.factory, abi: factoryAbi, functionName: "canLaunch", args: [state.account] });
-    if (!canLaunch) throw new Error("This wallet isn't allowed to launch on Pons right now");
+    if (!canLaunch) throw new Error("This wallet isn't allowed to launch right now");
 
     // Pin the economics we just showed so a re-peg can't land under the tx.
     const expectedEconomics = await state.client.readContract({
@@ -290,10 +290,10 @@ async function launch() {
     const ex = robinhood.blockExplorers.default.url;
     setStatus(
       launched
-        ? `🚀 <b>$${esc(params.symbol)}</b> is live on Pons v2. Creator fees are reserved for <b>@${esc(state.profile.handle)}</b>.<br>
+        ? `🚀 <b>$${esc(params.symbol)}</b> is live on Robinhood Chain. Creator fees are reserved for <b>@${esc(state.profile.handle)}</b>.<br>
            Token: <a href="${ex}/address/${launched.token}" target="_blank" rel="noopener">${short(launched.token)} ↗</a> ·
            Curve: <a href="${ex}/address/${launched.curve}" target="_blank" rel="noopener">${short(launched.curve)} ↗</a><br>
-           <a href="https://ponsfamily.com" target="_blank" rel="noopener">Trade on Pons ↗</a> · <a href="${txUrl}" target="_blank" rel="noopener">Transaction ↗</a>`
+           <a href="https://ponsfamily.com" target="_blank" rel="noopener">Trade ↗</a> · <a href="${txUrl}" target="_blank" rel="noopener">Transaction ↗</a>`
         : `Launched. <a href="${txUrl}" target="_blank" rel="noopener">View transaction ↗</a>`,
       "ok",
     );
