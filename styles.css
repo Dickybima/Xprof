@@ -53,6 +53,7 @@ a { color: inherit; }
 .btn-primary { background: var(--text); color: var(--bg); border-color: var(--text); }
 .btn-primary:hover { background: #fff; box-shadow: 0 0 24px rgba(255,255,255,0.25); }
 .btn-sm { padding: 6px 12px; font-size: 13px; }
+.tokenize-btn { display: inline-block; text-decoration: none; }
 
 /* ticker */
 .ticker { overflow: hidden; border-bottom: 1px solid var(--line); background: var(--panel); }
@@ -245,3 +246,8 @@ dialog::backdrop { background: rgba(0,0,0,.7); backdrop-filter: blur(4px); }
 @media (max-width: 480px) {
   .two { grid-template-columns: 1fr; }
 }
+
+.input[readonly] { color: #c7c7cc; background: var(--panel-2); cursor: not-allowed; }
+.lock { font-size: 11px; color: var(--muted); font-weight: 500; margin-left: 6px; }
+.fee-owner { display: flex; gap: 12px; align-items: center; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; font-size: 13.5px; line-height: 1.5; }
+.fee-owner img { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }

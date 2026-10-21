@@ -6,8 +6,15 @@ A dark, Noir-style landing page where any X (Twitter) profile can be tokenized o
 
 Typing a handle and pressing **Tokenize** opens `launch.html?handle=<handle>&source=x`:
 
-1. **Your profile** — detects the X profile (name, avatar, bio) via the public fxtwitter API; every field stays editable.
-2. **Review and launch** — coin name, ticker, hook, socials, creator fee recipient, optional initial buy and buyback toggle. Live terms (launch fee, curve fee, graduation threshold) are read from the Pons v2 factory.
+1. **Your profile** — detects the X profile (name, avatar, bio) via the public fxtwitter API.
+2. **Review and launch** — the coin name (X display name), ticker (handle, uppercased), logo (X avatar) and X link are locked to the profile. Only the one-line hook, website, optional initial buy and buyback toggle are editable. Live terms (launch fee, curve fee, graduation threshold) are read from the Pons v2 factory.
+
+### Creator fees go to the X profile owner
+
+Every launch sets `creatorFeeRecipient` to the Xprof fee vault (`XPROF_FEE_VAULT` in `config.js`); launches are blocked until it is set. The coin's `socials.twitter` stores `https://x.com/<handle>` on-chain, so the vault knows which account each coin belongs to. When the owner proves the account is theirs, the vault:
+
+1. calls `PonsV2LaunchFactory.transferCreatorFeeRecipient(token, ownerWallet)` so future fees go straight to them, and
+2. claims the fees already accrued for that token from the Pons fee escrow and forwards them.
 
 The connected wallet signs one transaction on Robinhood Chain (chain ID 4663):
 
@@ -30,4 +37,4 @@ python3 -m http.server 8080
 # open http://localhost:8080
 ```
 
-> Leaderboard prices and trades on the homepage are simulated. Launches from `launch.html` are real on-chain transactions.
+> Leaderboard prices on the homepage are simulated; its Tokenize buttons open the launch page. Launches from `launch.html` are real on-chain transactions.

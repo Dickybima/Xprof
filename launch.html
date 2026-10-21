@@ -25,7 +25,7 @@
 
   <main class="launch">
     <h1 class="launch-title">Launch your <span class="dim">profile coin</span></h1>
-    <p class="sub left">Detect it from any 𝕏 profile, tune every field, then launch on the Pons v2 bonding curve on Robinhood Chain. Your wallet signs the transaction. Nothing is custodied.</p>
+    <p class="sub left">Detect it from any 𝕏 profile, then launch it on the Pons v2 bonding curve on Robinhood Chain. Name, ticker and avatar are locked to the profile, and creator fees are reserved for the account owner. Your wallet signs the transaction.</p>
 
     <div class="launch-grid">
       <!-- Step 1 -->
@@ -36,7 +36,7 @@
           <button type="button" class="seg-btn active"><span class="x-ico">𝕏</span> @X</button>
         </div>
 
-        <p class="note">Drop an 𝕏 handle and detect the profile. We pull the name, avatar and bio straight from X. Everything stays editable before you launch.</p>
+        <p class="note">Drop an 𝕏 handle and detect the profile. The coin's name, ticker and avatar come straight from X and can't be changed, so every profile coin matches the account it represents.</p>
 
         <label class="field-label" for="handle">Handle</label>
         <div class="input-at"><span>@</span><input id="handle" class="input" placeholder="elonmusk" maxlength="15" autocomplete="off" /></div>
@@ -45,13 +45,13 @@
 
         <div class="detected" id="detected" hidden></div>
 
-        <label class="field-label" for="displayName">Display name (optional)</label>
-        <input id="displayName" class="input" maxlength="64" />
+        <label class="field-label" for="displayName">Display name <span class="lock">🔒 from X</span></label>
+        <input id="displayName" class="input" readonly />
 
-        <label class="field-label" for="bio">Bio (optional)</label>
-        <textarea id="bio" class="input" rows="3" maxlength="2048"></textarea>
+        <label class="field-label" for="bio">Bio <span class="lock">🔒 from X</span></label>
+        <textarea id="bio" class="input" rows="3" readonly></textarea>
 
-        <p class="fine">Detect fills these from X, or type them in by hand. Set the coin name, ticker and avatar on the right, then launch.</p>
+        <p class="fine">Detect fills these from X. Only the one-line hook and website can be edited before launch.</p>
       </section>
 
       <!-- Step 2 -->
@@ -66,20 +66,19 @@
         <div class="avatar-row">
           <img id="logoPreview" class="logo-preview" alt="" />
           <div class="avatar-actions">
-            <label class="btn btn-ghost" for="logoFile">Replace avatar</label>
-            <input type="file" id="logoFile" accept="image/png,image/jpeg,image/webp" hidden />
-            <p class="fine">Uses the X avatar URL on-chain. Uploads are auto-compressed for on-chain use.</p>
+            <b>Profile avatar</b> <span class="lock">🔒 from X</span>
+            <p class="fine">The X profile picture is stored as the coin's logo on-chain.</p>
           </div>
         </div>
 
         <div class="two">
           <div>
-            <label class="field-label" for="coinName">Coin name</label>
-            <input id="coinName" class="input" maxlength="64" />
+            <label class="field-label" for="coinName">Coin name <span class="lock">🔒</span></label>
+            <input id="coinName" class="input" readonly />
           </div>
           <div>
-            <label class="field-label" for="ticker">Ticker</label>
-            <input id="ticker" class="input mono" maxlength="16" />
+            <label class="field-label" for="ticker">Ticker <span class="lock">🔒</span></label>
+            <input id="ticker" class="input mono" readonly />
           </div>
         </div>
 
@@ -91,8 +90,8 @@
 
         <div class="two">
           <div>
-            <label class="field-label" for="twitter">X / Twitter</label>
-            <input id="twitter" class="input" placeholder="https://x.com/..." maxlength="256" />
+            <label class="field-label" for="twitter">X / Twitter <span class="lock">🔒</span></label>
+            <input id="twitter" class="input" readonly />
           </div>
           <div>
             <label class="field-label" for="website">Website (optional)</label>
@@ -100,8 +99,8 @@
           </div>
         </div>
 
-        <label class="field-label" for="feeRecipient">Creator fee recipient</label>
-        <input id="feeRecipient" class="input mono" placeholder="Defaults to your connected wallet" />
+        <label class="field-label">Creator fees go to</label>
+        <div class="fee-owner" id="feeOwner"><span class="muted">Detect a profile to see who earns this coin's creator fees.</span></div>
 
         <div class="two">
           <div>

@@ -3,6 +3,7 @@ import {
   decodeEventLog, zeroAddress, isAddress,
 } from "./vendor/viem.js";
 import { robinhood, PONS, factoryAbi, forwarderAbi, quoteOpeningBuy, applySlippage, randomSalt } from "./pons.js";
+import { XPROF_FEE_VAULT } from "./config.js";
 
 const $ = (s) => document.querySelector(s);
 const SLIPPAGE_BPS = 300;
@@ -11,14 +12,14 @@ const LOGO_MAX = 512;
 const els = {
   handle: $("#handle"), detect: $("#detectBtn"), detected: $("#detected"),
   displayName: $("#displayName"), bio: $("#bio"),
-  logoPreview: $("#logoPreview"), logoFile: $("#logoFile"),
+  logoPreview: $("#logoPreview"), feeOwner: $("#feeOwner"),
   coinName: $("#coinName"), ticker: $("#ticker"), hook: $("#hook"),
-  twitter: $("#twitter"), website: $("#website"), feeRecipient: $("#feeRecipient"),
+  twitter: $("#twitter"), website: $("#website"),
   initialBuy: $("#initialBuy"), buyback: $("#buyback"),
   connect: $("#connectBtn"), launch: $("#launchBtn"), status: $("#status"),
 };
 
-const state = { logo: "", account: null, wallet: null, client: null, terms: null, busy: false };
+const state = { profile: null, logo: "", account: null, wallet: null, client: null, terms: null, busy: false };
 
 // ---------- helpers ----------
 let toastTimer;
@@ -40,7 +41,6 @@ const compact = (n) => Intl.NumberFormat("en", { notation: "compact", maximumFra
 const fmtEth = (wei) => `${Number(formatEther(wei)).toLocaleString("en", { maximumFractionDigits: 6 })} ETH`;
 const fmtTokens = (wei) => compact(Number(formatEther(wei)));
 const cleanHandle = (v) => v.trim().replace(/^@/, "").replace(/^https?:\/\/(www\.)?(x|twitter)\.com\//i, "").split(/[/?#]/)[0];
-const tickerFrom = (s) => s.replace(/[^a-z0-9]/gi, "").slice(0, 10).toUpperCase();
 
 function initialsAvatar(name) {
   const initials = (name || "?").split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
@@ -87,19 +87,27 @@ async function detect() {
   els.detect.disabled = false;
   els.detect.textContent = "Re-detect profile";
 
-  els.displayName.value = p.name;
+  // Name, ticker, avatar and X link are derived from the profile and locked.
+  state.profile = {
+    handle: p.handle,
+    name: p.name.trim().slice(0, 64) || p.handle,
+    symbol: p.handle.toUpperCase(),
+    twitter: `https://x.com/${p.handle}`,
+  };
+  els.displayName.value = state.profile.name;
   els.bio.value = p.bio;
-  els.coinName.value = p.name.slice(0, 64);
-  els.ticker.value = tickerFrom(p.handle);
+  els.coinName.value = state.profile.name;
+  els.ticker.value = state.profile.symbol;
   els.hook.value = p.bio.split("\n")[0].slice(0, 280);
-  els.twitter.value = `https://x.com/${p.handle}`;
-  if (p.website) els.website.value = p.website;
-  setLogo(p.avatar);
+  els.twitter.value = state.profile.twitter;
+  els.website.value = p.website || "";
+  setLogo(p.avatar.length <= LOGO_MAX ? p.avatar : "");
+  renderFeeOwner(p);
 
   els.detected.hidden = false;
   els.detected.innerHTML = `<div><b>@${esc(p.handle)}</b> <span class="muted">· x.com` +
     (p.followers != null ? ` · ${compact(p.followers)} followers` : "") + `</span></div>` +
-    `<div class="muted">${p.fallback ? "Couldn't reach the X profile API — fill in the details by hand." : "Creator fees route to the recipient you set on the right."}</div>`;
+    `<div class="muted">${p.fallback ? "Couldn't reach the X profile API — the coin uses the handle as its name." : "Creator fees are reserved for this account."}</div>`;
 
   const url = new URL(location.href);
   url.searchParams.set("handle", p.handle);
@@ -110,31 +118,21 @@ async function detect() {
 
 els.detect.addEventListener("click", detect);
 els.handle.addEventListener("keydown", (e) => { if (e.key === "Enter") detect(); });
-els.displayName.addEventListener("input", () => { els.coinName.value = els.displayName.value.slice(0, 64); });
-els.bio.addEventListener("input", () => { els.hook.value = els.bio.value.split("\n")[0].slice(0, 280); });
-els.ticker.addEventListener("input", () => { els.ticker.value = els.ticker.value.toUpperCase().replace(/\s/g, ""); });
-
-// ---------- avatar upload (compressed to fit the on-chain logo field) ----------
-els.logoFile.addEventListener("change", async () => {
-  const file = els.logoFile.files[0];
-  if (!file) return;
-  const img = await createImageBitmap(file);
-  const canvas = document.createElement("canvas");
-  for (const size of [64, 48, 40, 32, 24]) {
-    canvas.width = canvas.height = size;
-    const ctx = canvas.getContext("2d");
-    const s = Math.min(img.width, img.height);
-    ctx.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, size, size);
-    for (const q of [0.7, 0.5, 0.3]) {
-      const url = canvas.toDataURL("image/webp", q);
-      if (url.startsWith("data:image/webp") && url.length <= LOGO_MAX) {
-        setLogo(url);
-        return toast(`Avatar compressed to ${size}px for on-chain use`);
-      }
-    }
+els.handle.addEventListener("input", () => {
+  if (state.profile && cleanHandle(els.handle.value).toLowerCase() !== state.profile.handle.toLowerCase()) {
+    els.detect.textContent = "Detect profile";
   }
-  toast("Image too detailed to store on-chain — the X avatar URL is kept");
 });
+
+function renderFeeOwner(p) {
+  const vault = XPROF_FEE_VAULT
+    ? `<a href="${robinhood.blockExplorers.default.url}/address/${XPROF_FEE_VAULT}" target="_blank" rel="noopener" class="mono">${short(XPROF_FEE_VAULT)}</a>`
+    : `<b class="down">not configured</b>`;
+  els.feeOwner.innerHTML = `<img src="${esc(els.logoPreview.src)}" alt="" />
+    <div><b>@${esc(p.handle)}</b> earns this coin's creator fees.
+    <div class="muted">Held in the Xprof fee vault ${vault} until @${esc(p.handle)} verifies the account and claims them.</div></div>`;
+  els.feeOwner.querySelector("img").addEventListener("error", (e) => { e.target.src = initialsAvatar(p.name); }, { once: true });
+}
 
 // ---------- chain ----------
 function readClient() {
@@ -204,7 +202,6 @@ async function connect() {
   state.client = createPublicClient({ chain: robinhood, transport: custom(provider) });
   els.connect.textContent = short(account);
   els.launch.textContent = "Launch coin";
-  if (!els.feeRecipient.value) els.feeRecipient.placeholder = `${short(account)} (connected wallet)`;
   provider.on?.("accountsChanged", (accs) => {
     state.account = accs[0] ?? null;
     els.connect.textContent = state.account ? short(state.account) : "Connect wallet";
@@ -219,20 +216,20 @@ els.connect.addEventListener("click", () => connect().catch((e) => toast(e.short
 
 // ---------- launch ----------
 function collectParams() {
-  const name = els.coinName.value.trim();
-  const symbol = els.ticker.value.trim();
-  if (!name) throw new Error("Coin name is required");
-  if (!symbol) throw new Error("Ticker is required");
-  if (symbol.length > 16) throw new Error("Ticker must be 16 characters or fewer");
-  const logo = state.logo.startsWith("data:image/svg") ? "" : state.logo;
-  if (logo.length > LOGO_MAX) throw new Error("Avatar is too large for on-chain storage");
-  const recipient = els.feeRecipient.value.trim();
-  if (recipient && !isAddress(recipient)) throw new Error("Creator fee recipient must be a valid address");
+  const p = state.profile;
+  if (!p) throw new Error("Detect an X profile first");
+  if (cleanHandle(els.handle.value).toLowerCase() !== p.handle.toLowerCase()) {
+    throw new Error(`Handle changed — re-detect @${cleanHandle(els.handle.value)} before launching`);
+  }
+  if (!isAddress(XPROF_FEE_VAULT)) throw new Error("The Xprof fee vault address isn't configured yet");
   return {
-    name, symbol, logo,
+    name: p.name,
+    symbol: p.symbol,
+    logo: state.logo.startsWith("data:") ? "" : state.logo,
     description: els.hook.value.trim(),
-    socials: { twitter: els.twitter.value.trim(), telegram: "", discord: "", website: els.website.value.trim(), farcaster: "" },
-    creatorFeeRecipient: recipient || state.account,
+    socials: { twitter: p.twitter, telegram: "", discord: "", website: els.website.value.trim(), farcaster: "" },
+    // Fees always accrue to the vault, earmarked for the X account owner.
+    creatorFeeRecipient: XPROF_FEE_VAULT,
     creatorTaxBps: 0,
     buybackEnabled: els.buyback.checked,
   };
@@ -293,7 +290,7 @@ async function launch() {
     const ex = robinhood.blockExplorers.default.url;
     setStatus(
       launched
-        ? `🚀 <b>$${esc(params.symbol)}</b> is live on Pons v2.<br>
+        ? `🚀 <b>$${esc(params.symbol)}</b> is live on Pons v2. Creator fees are reserved for <b>@${esc(state.profile.handle)}</b>.<br>
            Token: <a href="${ex}/address/${launched.token}" target="_blank" rel="noopener">${short(launched.token)} ↗</a> ·
            Curve: <a href="${ex}/address/${launched.curve}" target="_blank" rel="noopener">${short(launched.curve)} ↗</a><br>
            <a href="https://ponsfamily.com" target="_blank" rel="noopener">Trade on Pons ↗</a> · <a href="${txUrl}" target="_blank" rel="noopener">Transaction ↗</a>`

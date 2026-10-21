@@ -130,7 +130,7 @@
             <td class="num hide-sm">${usd(t.mcap)}</td>
             <td class="num hide-sm">${compact(t.followers)}</td>
             <td class="hide-md"><div class="bar" title="${d.bonding.toFixed(0)}% to graduation"><i style="width:${d.bonding}%"></i></div></td>
-            <td class="num hide-sm"><button class="btn btn-ghost btn-sm" data-trade="${t.handle}">Trade</button></td>
+            <td class="num hide-sm"><a class="btn btn-ghost btn-sm tokenize-btn" href="${launchUrl(t.handle)}">Tokenize</a></td>
           </tr>`;
         }).join("")
       : `<tr><td colspan="8" class="empty">No profiles match “${query}”. Tokenize it above ↑</td></tr>`;
@@ -151,48 +151,7 @@
     $("#statHolders").textContent = compact(tokens.reduce((s, t) => s + t.holders, 0));
   }
 
-  // ---------- modal ----------
-  const modal = $("#modal");
-  function openToken(t, isNew = false) {
-    const d = derive(t);
-    $("#modalBody").innerHTML = `
-      <div class="modal-head">${img(t, "avatar lg")}
-        <div><div class="name">${t.name}${t.verified ? badge : ""}</div><div class="handle">@${t.handle} · <span class="tick">${t.ticker}</span></div></div>
-        <button class="x-close" value="close" aria-label="Close">×</button>
-      </div>
-      ${isNew ? `<p class="bio">🚀 <b>${t.ticker}</b> has been launched on the bonding curve. Be the first buyer.</p>` : t.bio ? `<p class="bio">${t.bio}</p>` : ""}
-      <canvas class="chart"></canvas>
-      <div class="kv">
-        <div><span>Price</span><b>${price(d.price)}</b></div>
-        <div><span>24h</span><b class="${d.change >= 0 ? "up" : "down"}">${pct(d.change)}</b></div>
-        <div><span>Market cap</span><b>${usd(t.mcap)}</b></div>
-        <div><span>Holders</span><b>${compact(t.holders)}</b></div>
-        <div><span>Followers on X</span><b>${compact(t.followers)}</b></div>
-        <div><span>Bonding curve</span><b>${d.bonding.toFixed(0)}%</b></div>
-      </div>
-      <div class="trade">
-        <input type="number" min="0" step="0.1" value="0.5" aria-label="Amount in SOL" />
-        <button type="button" class="btn btn-buy" data-act="buy">Buy</button>
-        <button type="button" class="btn btn-sell" data-act="sell">Sell</button>
-      </div>
-      <a class="btn btn-primary" style="text-align:center;text-decoration:none" href="launch.html?handle=${encodeURIComponent(t.handle)}&source=x">Launch @${t.handle} on Pons v2 →</a>
-      <a class="handle" href="https://x.com/${t.handle}" target="_blank" rel="noopener">View @${t.handle} on X ↗</a>`;
-    modal.showModal();
-    sparkline($(".chart", modal), t.history, d.change >= 0);
-    $$("[data-act]", modal).forEach((b) =>
-      b.addEventListener("click", () => {
-        const amt = parseFloat($(".trade input", modal).value) || 0;
-        if (amt <= 0) return toast("Enter an amount");
-        const sign = b.dataset.act === "buy" ? 1 : -1;
-        t.mcap = Math.max(1000, t.mcap * (1 + sign * amt * 0.01));
-        t.history.push(t.mcap);
-        modal.close();
-        renderBoard({ [t.handle]: sign });
-        renderPodium();
-        toast(`${sign > 0 ? "Bought" : "Sold"} ${amt} SOL of ${t.ticker} (demo)`);
-      })
-    );
-  }
+  const launchUrl = (handle) => `launch.html?handle=${encodeURIComponent(handle)}&source=x`;
 
   let toastTimer;
   function toast(msg) {
@@ -208,7 +167,7 @@
     e.preventDefault();
     const raw = $("#handleInput").value.trim().replace(/^@/, "").replace(/^https?:\/\/(www\.)?(x|twitter)\.com\//i, "").split(/[/?]/)[0];
     if (!/^[A-Za-z0-9_]{1,15}$/.test(raw)) return toast("Enter a valid X handle");
-    location.href = `launch.html?handle=${encodeURIComponent(raw)}&source=x`;
+    location.href = launchUrl(raw);
   });
 
   $$("[data-try]").forEach((a) => a.addEventListener("click", (e) => {
@@ -226,12 +185,12 @@
   $("#search").addEventListener("input", (e) => { query = e.target.value; renderBoard(); });
 
   const openFrom = (e) => {
+    if (e.target.closest("a")) return;
     const el = e.target.closest("[data-handle]");
-    if (el) openToken(byHandle(el.dataset.handle));
+    if (el) location.href = launchUrl(el.dataset.handle);
   };
   $("#board").addEventListener("click", openFrom);
   $("#podium").addEventListener("click", openFrom);
-  modal.addEventListener("click", (e) => { if (e.target === modal) modal.close(); });
 
 
   // simulated live market
