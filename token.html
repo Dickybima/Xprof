@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Coin · SPIDERPAD</title>
+  <link rel="icon" href="logo.svg" type="image/svg+xml" />
+  <meta name="description" content="Trade an X profile coin on Robinhood Chain." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="nav">
+    <a class="brand" href="index.html"><img class="logo-mark" src="logo.svg" alt="" width="36" height="36" /><span class="wordmark">SPIDER<span>PAD</span></span></a>
+    <nav class="links">
+      <a href="index.html#top">Top Profiles</a>
+      <a href="explore.html" class="active">Explore</a>
+      <a href="launch.html">Launch</a>
+      <a href="index.html#how">How it works</a>
+    </nav>
+    <div class="wallet">
+      <span class="chain-chip"><span class="chain-dot"></span>Robinhood</span>
+      <a class="btn btn-ghost x-link" href="https://x.com" target="_blank" rel="noopener" aria-label="SPIDERPAD on X" title="Follow SPIDERPAD on X"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>
+      <button class="btn btn-ghost" id="connectBtn">Connect wallet</button>
+    </div>
+  </header>
+
+  <main class="coin-page">
+    <section class="panel coin-hero" id="hero">
+      <div class="explore-empty">Loading coin from Robinhood Chain…</div>
+    </section>
+
+    <div class="coin-layout">
+      <div class="coin-main">
+        <section class="panel chart-panel">
+          <div class="chart-head">
+            <b>Chart</b>
+            <div class="chart-controls">
+              <div class="tabs" id="intervals">
+                <button class="tab" data-sec="60">1m</button>
+                <button class="tab active" data-sec="300">5m</button>
+                <button class="tab" data-sec="900">15m</button>
+                <button class="tab" data-sec="3600">1h</button>
+                <button class="tab" data-sec="14400">4h</button>
+                <button class="tab" data-sec="86400">1D</button>
+              </div>
+              <div class="tabs" id="metric">
+                <button class="tab active" data-metric="price">Price</button>
+                <button class="tab" data-metric="mcap">MCap</button>
+              </div>
+            </div>
+          </div>
+          <div id="chart" class="chart-box"></div>
+          <p class="fine" id="chartNote"></p>
+        </section>
+
+        <section class="panel">
+          <div class="chart-head"><b>Recent trades</b></div>
+          <div class="table-wrap trades-wrap">
+            <table class="board trades">
+              <thead><tr><th>Type</th><th class="num">ETH</th><th class="num hide-sm">Tokens</th><th class="num hide-sm">Price</th><th class="num">Trader</th><th class="num">Time</th></tr></thead>
+              <tbody id="trades"><tr><td colspan="6" class="empty">No trades yet.</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <aside class="coin-side">
+        <section class="panel trade-panel">
+          <div class="seg trade-tabs">
+            <button type="button" class="seg-btn active" data-side="buy">Buy</button>
+            <button type="button" class="seg-btn" data-side="sell">Sell</button>
+          </div>
+          <label class="field-label" for="amount" id="amountLabel">You pay</label>
+          <div class="amount-box">
+            <input id="amount" class="input mono" type="number" min="0" step="any" placeholder="0.0" />
+            <span class="amount-unit" id="amountUnit">ETH</span>
+          </div>
+          <div class="quick" id="quick"></div>
+          <div class="trade-row"><span>You receive (est.)</span><b id="receive">—</b></div>
+          <div class="trade-row"><span>Balance</span><b id="balance">—</b></div>
+          <div class="trade-row"><span>Slippage</span>
+            <div class="slip" id="slippage">
+              <button data-bps="500">5%</button><button data-bps="1000" class="active">10%</button><button data-bps="2000">20%</button>
+            </div>
+          </div>
+          <button class="btn btn-primary btn-block" id="tradeBtn" type="button">Connect wallet</button>
+          <div class="status" id="tradeStatus" hidden></div>
+          <p class="fine">Trades go straight to this coin's bonding curve on Robinhood Chain. Estimates use the live curve, its fees and creator tax.</p>
+        </section>
+
+        <section class="panel">
+          <b>Creator fees</b>
+          <p class="note" id="creatorNote">Creator fees from every trade go to the wallet that launched this coin.</p>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <span>© <span id="year"></span> SPIDERPAD. Not affiliated with X Corp.</span>
+    <span class="muted">Data read live from Robinhood Chain.</span>
+  </footer>
+
+  <div class="toast" id="toast" role="status"></div>
+  <script src="bg.js"></script>
+  <script src="vendor/lightweight-charts.js"></script>
+  <script type="module" src="nav.js"></script>
+  <script type="module" src="token.js"></script>
+</body>
+</html>

@@ -2,7 +2,7 @@ import {
   createPublicClient, createWalletClient, custom, http, parseEther, formatEther,
   decodeEventLog, zeroAddress, isAddress,
 } from "./vendor/viem.js";
-import { robinhood, PONS, factoryAbi, forwarderAbi, quoteOpeningBuy, applySlippage, randomSalt, SPIDERPAD_MARKER } from "./pons.js";
+import { robinhood, PONS, factoryAbi, forwarderAbi, quoteOpeningBuy, applySlippage, randomSalt, SPIDERPAD_MARKER, ensureChain } from "./pons.js";
 import { pickWallet, lastWallet, rememberWallet } from "./wallets.js";
 
 const $ = (s) => document.querySelector(s);
@@ -172,22 +172,6 @@ function updateEstimate() {
 }
 els.initialBuy.addEventListener("input", updateEstimate);
 
-async function ensureChain(provider) {
-  const hex = "0x" + robinhood.id.toString(16);
-  try {
-    await provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId: hex }] });
-  } catch (err) {
-    if (err.code !== 4902 && err?.data?.originalError?.code !== 4902) throw err;
-    await provider.request({
-      method: "wallet_addEthereumChain",
-      params: [{
-        chainId: hex, chainName: robinhood.name, nativeCurrency: robinhood.nativeCurrency,
-        rpcUrls: robinhood.rpcUrls.default.http, blockExplorerUrls: [robinhood.blockExplorers.default.url],
-      }],
-    });
-  }
-}
-
 function setConnectedUi() {
   const w = state.walletInfo;
   els.connect.innerHTML = state.account
@@ -326,7 +310,7 @@ async function launch() {
         ? `🚀 <b>$${esc(params.symbol)}</b> is live on Robinhood Chain. Creator fees go to your wallet.<br>
            Token: <a href="${ex}/address/${launched.token}" target="_blank" rel="noopener">${short(launched.token)} ↗</a> ·
            Curve: <a href="${ex}/address/${launched.curve}" target="_blank" rel="noopener">${short(launched.curve)} ↗</a><br>
-           <a href="explore.html">View in Explore →</a> · <a href="https://ponsfamily.com" target="_blank" rel="noopener">Trade ↗</a> · <a href="${txUrl}" target="_blank" rel="noopener">Transaction ↗</a>`
+           <a href="token.html?address=${launched.token}">Open coin page →</a> · <a href="explore.html">Explore</a> · <a href="https://ponsfamily.com" target="_blank" rel="noopener">Trade ↗</a> · <a href="${txUrl}" target="_blank" rel="noopener">Transaction ↗</a>`
         : `Launched. <a href="${txUrl}" target="_blank" rel="noopener">View transaction ↗</a>`,
       "ok",
     );

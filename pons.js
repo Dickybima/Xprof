@@ -40,6 +40,15 @@ export const factoryAbi = parseAbi([
 
 export const curveAbi = parseAbi([
   "function token() view returns (address)",
+  "function deployer() view returns (address)",
+  "function feeBps() view returns (uint256)",
+  "function creatorTaxBps() view returns (uint256)",
+  "function sellableTokens() view returns (uint256)",
+  "function currentSnipeTaxBps(address recipient) view returns (uint256)",
+  "function buy(uint256 quoteIn, uint256 minTokensOut, address recipient) payable returns (uint256 tokensOut)",
+  "function sell(uint256 tokensIn, uint256 minQuoteOut, address recipient) returns (uint256 quoteOut)",
+  "event CurveBuy(address indexed buyer, address indexed recipient, uint256 quoteIn, uint256 tokensOut, uint256 fee, uint256 tax)",
+  "event CurveSell(address indexed seller, address indexed recipient, uint256 tokensIn, uint256 quoteOut, uint256 fee, uint256 tax)",
   "function graduationThreshold() view returns (uint256)",
   "function getReserves() view returns (uint256 quoteReserve, uint256 tokenReserve)",
   "function realQuoteReserve() view returns (uint256)",
@@ -54,6 +63,9 @@ export const tokenAbi = parseAbi([
   "function logo() view returns (string)",
   "function description() view returns (string)",
   "function socials() view returns (string twitter, string telegram, string discord, string website, string farcaster)",
+  "function balanceOf(address account) view returns (uint256)",
+  "function allowance(address owner, address spender) view returns (uint256)",
+  "function approve(address spender, uint256 amount) returns (bool)",
 ]);
 
 export const forwarderAbi = parseAbi([
@@ -69,12 +81,42 @@ const BPS = 10_000n;
 // sellable allocation).
 export function quoteOpeningBuy(config, amountIn, creatorTaxBps = 0n) {
   const reserved = (config.supply * config.phantomQuote) / (config.phantomQuote + config.graduationThreshold);
-  const sellable = config.supply - reserved;
-  const fee = (amountIn * config.curveFeeBps) / BPS;
-  const tax = (amountIn * creatorTaxBps) / BPS;
-  const net = amountIn - fee - tax;
-  const out = (net * config.supply) / (config.phantomQuote + net);
-  return out > sellable ? sellable : out;
+  return quoteBuy({
+    quoteReserve: config.phantomQuote, tokenReserve: config.supply, sellable: config.supply - reserved,
+    feeBps: config.curveFeeBps, creatorTaxBps,
+  }, amountIn);
+}
+
+// Tokens out for a buy on a live curve. Fees and taxes come off the quote
+// leg first; extraBps covers a decaying snipe tax early in a launch.
+export function quoteBuy({ quoteReserve, tokenReserve, sellable, feeBps, creatorTaxBps = 0n, extraBps = 0n }, amountIn) {
+  const net = amountIn - (amountIn * feeBps) / BPS - (amountIn * creatorTaxBps) / BPS - (amountIn * extraBps) / BPS;
+  if (net <= 0n) return 0n;
+  const out = (net * tokenReserve) / (quoteReserve + net);
+  return sellable != null && out > sellable ? sellable : out;
+}
+
+// ETH out for a sell on a live curve, after the curve fee and creator tax.
+export function quoteSell({ quoteReserve, tokenReserve, feeBps, creatorTaxBps = 0n }, tokensIn) {
+  const gross = (tokensIn * quoteReserve) / (tokenReserve + tokensIn);
+  return gross - (gross * feeBps) / BPS - (gross * creatorTaxBps) / BPS;
+}
+
+// Switches the wallet to Robinhood Chain, adding the network if needed.
+export async function ensureChain(provider) {
+  const hex = "0x" + robinhood.id.toString(16);
+  try {
+    await provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId: hex }] });
+  } catch (err) {
+    if (err.code !== 4902 && err?.data?.originalError?.code !== 4902) throw err;
+    await provider.request({
+      method: "wallet_addEthereumChain",
+      params: [{
+        chainId: hex, chainName: robinhood.name, nativeCurrency: robinhood.nativeCurrency,
+        rpcUrls: robinhood.rpcUrls.default.http, blockExplorerUrls: [robinhood.blockExplorers.default.url],
+      }],
+    });
+  }
 }
 
 export const applySlippage = (amount, bps) => (amount * (BPS - BigInt(bps))) / BPS;

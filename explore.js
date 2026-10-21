@@ -32,7 +32,7 @@ const sorters = {
 
 function card(c) {
   const logo = safeUrl(c.logo) || (c.logo?.startsWith("data:image/") ? c.logo : "") || initials(c.name);
-  return `<article class="coin">
+  return `<article class="coin" data-token="${esc(c.token)}">
     <div class="coin-top">
       <img class="coin-logo" src="${esc(logo)}" alt="" loading="lazy" data-fallback="${esc(initials(c.name))}" />
       <div class="coin-id">
@@ -52,7 +52,7 @@ function card(c) {
     </div>
     <div class="coin-links">
       <a href="${EXPLORER}/token/${c.token}" target="_blank" rel="noopener">${short(c.token)} ↗</a>
-      <a href="https://ponsfamily.com" target="_blank" rel="noopener">Trade ↗</a>
+      <a href="token.html?address=${esc(c.token)}" class="trade-link">Trade →</a>
     </div>
   </article>`;
 }
@@ -65,6 +65,9 @@ function render() {
   $("#grid").innerHTML = list.length
     ? list.map(card).join("")
     : `<div class="explore-empty">${launches.length ? `No coins match “${esc(query)}”.` : `No profile coins yet. <a href="launch.html">Launch the first one →</a>`}</div>`;
+  $$(".coin").forEach((el) => el.addEventListener("click", (e) => {
+    if (!e.target.closest("a")) location.href = `token.html?address=${el.dataset.token}`;
+  }));
   $$(".coin-logo").forEach((img) => img.addEventListener("error", () => { img.src = img.dataset.fallback; }, { once: true }));
 }
 

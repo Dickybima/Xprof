@@ -325,3 +325,61 @@ button.wm-item em { color: #39ff14; }
 .wm-foot { color: #6b6b74; font-size: 12px; margin: 16px 0 0; line-height: 1.5; }
 .wallet-icon { width: 18px; height: 18px; border-radius: 5px; vertical-align: -4px; margin-right: 8px; }
 .fee-ico { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: #0d1f0a; color: #39ff14; flex-shrink: 0; }
+
+/* ---------- coin page ---------- */
+.coin-page { max-width: 1120px; padding-top: 40px; display: grid; gap: 20px; }
+.coin-hero { gap: 18px; }
+.hero-top { display: flex; gap: 18px; align-items: flex-start; }
+.hero-logo { width: 84px; height: 84px; border-radius: 16px; object-fit: cover; border: 1px solid var(--line); background: var(--panel-2); flex-shrink: 0; box-shadow: 0 0 24px rgba(57,255,20,.12); }
+.hero-id { min-width: 0; flex: 1; display: grid; gap: 8px; }
+.hero-name { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.hero-name h1 { margin: 0; font-size: clamp(24px, 4vw, 32px); letter-spacing: -0.02em; }
+.hero-tick { font-family: var(--mono); color: #39ff14; font-weight: 600; }
+.chain-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; background: var(--panel-2); }
+.hero-links { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; }
+.hero-links a, .copy { color: var(--muted); text-decoration: none; font-family: var(--mono); font-size: 12.5px; }
+.hero-links a:hover, .copy:hover { color: #39ff14; }
+.copy { background: none; border: 0; padding: 0; cursor: pointer; }
+.hero-desc { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
+.hero-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.stat { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: grid; gap: 4px; min-width: 0; }
+.stat span { color: var(--muted); font-size: 12.5px; }
+.stat b { font-family: var(--mono); font-size: clamp(17px, 2.4vw, 22px); font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+.stat small { color: #6b6b74; font-size: 11.5px; font-family: var(--mono); }
+.hero-bar { height: 6px; border-radius: 99px; background: var(--panel-2); overflow: hidden; }
+.hero-bar i { display: block; height: 100%; min-width: 4px; background: linear-gradient(90deg, #1a9e05, #39ff14); box-shadow: 0 0 10px rgba(57,255,20,.6); border-radius: 99px; }
+.coin-layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 20px; align-items: start; }
+.coin-main, .coin-side { display: grid; gap: 20px; min-width: 0; }
+.chart-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.chart-controls { display: flex; gap: 8px; flex-wrap: wrap; }
+.chart-controls .tab { padding: 6px 10px; font-size: 12px; }
+.chart-box { height: 380px; width: 100%; margin-top: 8px; }
+.trades-wrap { margin-top: 6px; max-height: 420px; overflow-y: auto; }
+.trades a { color: var(--muted); text-decoration: none; }
+.trades a:hover { color: #39ff14; }
+.trades tbody tr { cursor: default; }
+.trade-panel { gap: 12px; }
+.trade-tabs .seg-btn.active[data-side="buy"] { background: #39ff14; color: #041204; box-shadow: none; }
+.trade-tabs .seg-btn.active[data-side="sell"] { background: #ef4444; color: #fff; box-shadow: none; }
+.amount-box { position: relative; }
+.amount-box .input { font-size: 22px; padding: 14px 80px 14px 14px; }
+.amount-unit { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); font-weight: 700; font-size: 14px; color: var(--muted); max-width: 70px; overflow: hidden; text-overflow: ellipsis; }
+.quick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.quick button, .slip button { background: var(--bg); border: 1px solid var(--line); color: var(--muted); border-radius: 8px; padding: 7px 0; font: inherit; font-family: var(--mono); font-size: 12.5px; cursor: pointer; }
+.quick button:hover, .slip button:hover { color: var(--text); border-color: #3a3a42; }
+.trade-row { display: flex; justify-content: space-between; align-items: center; font-size: 13.5px; color: var(--muted); gap: 10px; }
+.trade-row b { color: var(--text); font-family: var(--mono); font-weight: 600; text-align: right; }
+.slip { display: flex; gap: 4px; }
+.slip button { padding: 4px 10px; }
+.slip button.active { color: #39ff14; border-color: rgba(57,255,20,.5); }
+.coin { cursor: pointer; }
+@media (max-width: 900px) {
+  .coin-layout { grid-template-columns: 1fr; }
+  .hero-stats { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 480px) {
+  .hero-top { flex-direction: column; }
+  .chart-box { height: 300px; }
+}
+.chart-panel, .chart-box { min-width: 0; overflow: hidden; }
+.coin-main > .panel { min-width: 0; }

@@ -17,6 +17,10 @@ Every launch sets `creatorFeeRecipient` to the wallet that signs the launch, so 
 
 `explore.html` lists every coin launched through SPIDERPAD, newest first, with market cap, bonding progress, search and sorting. It reads `/api/launches`, a Vercel function (`api/launches.js`). Every SPIDERPAD launch exempts `SPIDERPAD_MARKER` (`pons.js`) from the curve's snipe tax, so the curve emits `SnipeTaxExempted(marker)`; one log query over Robinhood Chain finds every SPIDERPAD coin. Coins from earlier versions are found through the fee vaults they used (`PAST_FEE_VAULTS`) or listed by token address in `LEGACY_TOKENS` (`config.js`). Responses are CDN-cached for 30 seconds. Set `ROBINHOOD_RPC_URL` in Vercel to use a dedicated RPC instead of the public one.
 
+## Coin page
+
+Clicking a coin in Explore opens `token.html?address=<token>`: logo, name, ticker, contract address, X handle, creator and explorer links; market cap, price (USD when the ETH price is available), ETH in the curve and bonding progress; a candlestick chart built from the curve's `CurveBuy`/`CurveSell` events (1m–1D, price or market cap); recent trades; and a Buy/Sell panel that trades directly on the coin's bonding curve from the connected wallet (`buy` with ETH, or `approve` + `sell`), with live quotes and 5/10/20% slippage. Data comes from `/api/token` (`api/token.js`). The chart library is vendored in `vendor/lightweight-charts.js` (TradingView Lightweight Charts 4.2.3, Apache-2.0).
+
 ## Features
 - Paste an X handle (or `x.com/...` URL) to tokenize it — opens a token card with price, market cap, bonding progress and buy/sell.
 - Top 3 podium with sparklines and a sortable/searchable leaderboard (market cap, gainers, followers, volume).
