@@ -264,3 +264,13 @@ dialog::backdrop { background: rgba(0,0,0,.7); backdrop-filter: blur(4px); }
 .brand:hover .logo-mark { transform: translateY(2px) rotate(-6deg); }
 .wordmark { font-weight: 800; font-size: 19px; letter-spacing: .08em; }
 .wordmark span { color: #39ff14; text-shadow: 0 0 10px rgba(57,255,20,.6); }
+.x-link { display: inline-grid; place-items: center; width: 40px; height: 40px; padding: 0; text-decoration: none; }
+.x-link:hover { color: #39ff14; border-color: rgba(57,255,20,.5); box-shadow: 0 0 14px rgba(57,255,20,.25); }
+.wallet .btn { white-space: nowrap; }
+@media (max-width: 480px) {
+  .nav { gap: 10px; }
+  .wordmark { font-size: 16px; }
+  .logo-mark { width: 30px; height: 30px; }
+  .wallet .btn:not(.x-link) { padding: 10px 12px; font-size: 13px; }
+  .x-link { width: 38px; height: 38px; }
+}
