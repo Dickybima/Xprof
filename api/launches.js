@@ -4,27 +4,42 @@
 // from earlier versions are found the same way through the fee vaults they
 // used (creator fee recipients are exempted at launch), plus LEGACY_TOKENS and
 // LEGACY_LAUNCH_TXS.
-import { createPublicClient, http, formatEther, decodeEventLog } from "../vendor/viem.js";
+import { createPublicClient, http, fallback, formatEther, decodeEventLog } from "../vendor/viem.js";
 import { robinhood, PONS, factoryAbi, curveAbi, tokenAbi, SPIDERPAD_MARKER } from "../pons.js";
 import { PAST_FEE_VAULTS, LEGACY_TOKENS, LEGACY_LAUNCH_TXS } from "../config.js";
 
 export const config = { maxDuration: 60 };
 
+// Tried in order; a failing endpoint falls through to the next. Blockscout's
+// JSON-RPC is backed by its indexer, so it serves logs when the public node
+// refuses requests from serverless hosts.
+const RPC_URLS = [
+  process.env.ROBINHOOD_RPC_URL,
+  robinhood.rpcUrls.default.http[0],
+  "https://robinhoodchain.blockscout.com/api/eth-rpc",
+].filter(Boolean);
+
+const httpOptions = {
+  timeout: 15_000,
+  retryCount: 2,
+  retryDelay: 500,
+  fetchOptions: { headers: { "user-agent": "SPIDERPAD-explore/1.0" } },
+};
+
 const client = createPublicClient({
   chain: robinhood,
-  transport: http(process.env.ROBINHOOD_RPC_URL || robinhood.rpcUrls.default.http[0], { timeout: 15_000, retryCount: 1 }),
+  transport: fallback(RPC_URLS.map((url) => http(url, httpOptions))),
 });
 
 const exemptedEvent = curveAbi.find((x) => x.type === "event" && x.name === "SnipeTaxExempted");
 const launchedEvent = factoryAbi.find((x) => x.type === "event" && x.name === "TokenLaunched");
 const MARKERS = [SPIDERPAD_MARKER, ...PAST_FEE_VAULTS];
 
-// Warm-instance cache of curves already found and the last block scanned.
 // No SPIDERPAD coin is older than this, so scans start here instead of at the
 // factory's first block (tens of millions of blocks back).
 const SPIDERPAD_SINCE = Date.UTC(2026, 9, 20) / 1000;
 const WINDOW = 250_000n; // blocks per eth_getLogs request
-const PARALLEL = 4;
+const PARALLEL = 2;
 const TIME_BUDGET_MS = 40_000; // stay well inside maxDuration
 
 // Warm-instance cache of curves already found and the last block scanned.
@@ -146,17 +161,49 @@ async function describe({ curve, blockNumber, txHash }) {
   };
 }
 
+// Flattens a viem error and its causes into one line, keeping the HTTP status,
+// endpoint and RPC details that explain why a request failed.
+function explain(err) {
+  const parts = [];
+  for (let e = err, depth = 0; e && depth < 6; e = e.cause, depth++) {
+    const bits = [e.shortMessage || e.message?.split("\n")[0], e.status && `HTTP ${e.status}`, e.url && `(${e.url.replace(/^https?:\/\//, "").split("/")[0]})`, e.details];
+    const line = bits.filter(Boolean).join(" ");
+    if (line && !parts.includes(line)) parts.push(line);
+  }
+  return parts.join(" ← ").slice(0, 400) || "Couldn't read Robinhood Chain";
+}
+
+// GET /api/launches?debug=1 reports how each RPC endpoint responds.
+async function diagnose() {
+  return Promise.all(RPC_URLS.map(async (url) => {
+    const c = createPublicClient({ chain: robinhood, transport: http(url, { ...httpOptions, retryCount: 0 }) });
+    const host = new URL(url).host;
+    try {
+      const latest = await c.getBlockNumber();
+      const logs = await c.getLogs({ event: exemptedEvent, args: { account: MARKERS }, fromBlock: latest - 50_000n, toBlock: latest })
+        .then((l) => `ok (${l.length} logs in last 50k blocks)`, (e) => explain(e));
+      return { host, blockNumber: Number(latest), logs };
+    } catch (e) {
+      return { host, error: explain(e) };
+    }
+  }));
+}
+
 export default async function handler(req, res) {
+  if (new URL(req.url, "http://x").searchParams.has("debug")) {
+    res.setHeader("Cache-Control", "no-store");
+    return res.status(200).json({ endpoints: await diagnose(), cache: { scannedTo: cache.scannedTo == null ? null : Number(cache.scannedTo), found: cache.curves.size } });
+  }
   const deadline = Date.now() + TIME_BUDGET_MS;
   try {
     const complete = await scan(deadline);
     const curves = [...cache.curves.values()].sort((a, b) => Number(b.blockNumber - a.blockNumber)).slice(0, 200);
-    const launches = (await inBatches(curves, 20, (c) => describe(c).catch(() => null))).filter(Boolean);
+    const launches = (await inBatches(curves, 10, (c) => describe(c).catch(() => null))).filter(Boolean);
     // A partial scan is cached only briefly so the next request continues it.
     res.setHeader("Cache-Control", complete ? "s-maxage=30, stale-while-revalidate=300" : "no-store");
     res.status(200).json({ launches, complete, scannedTo: Number(cache.scannedTo) });
   } catch (err) {
     res.setHeader("Cache-Control", "no-store");
-    res.status(502).json({ error: err.shortMessage || err.message || "Couldn't read Robinhood Chain" });
+    res.status(502).json({ error: explain(err) });
   }
 }
