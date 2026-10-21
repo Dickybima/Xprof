@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Xprof — Tokenize X Profiles</title>
+  <meta name="description" content="Tokenize any X profile. Trade the timeline. Discover the top tokenized X profiles." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="nav">
+    <a class="brand" href="#">
+      <span class="logo">𝕏</span><span>prof</span>
+    </a>
+    <nav class="links">
+      <a href="#top">Top Profiles</a>
+      <a href="#how">How it works</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <button class="btn btn-ghost" id="connectBtn">Connect wallet</button>
+  </header>
+
+  <div class="ticker" aria-label="Live trades">
+    <div class="ticker-track" id="ticker"></div>
+  </div>
+
+  <main>
+    <section class="hero">
+      <div class="pill"><span class="dot"></span> Live on Solana</div>
+      <h1>Tokenize any <span class="x">𝕏</span> profile.</h1>
+      <p class="sub">Every account on X can become a token. Paste a handle, launch it on a bonding curve, and trade the people you believe in before the timeline catches up.</p>
+
+      <form class="tokenize" id="tokenizeForm" autocomplete="off">
+        <span class="at">@</span>
+        <input id="handleInput" type="text" placeholder="elonmusk" maxlength="15" aria-label="X handle" />
+        <button class="btn btn-primary" type="submit">Tokenize</button>
+      </form>
+      <p class="hint">Try <a href="#" data-try="naval">@naval</a>, <a href="#" data-try="VitalikButerin">@VitalikButerin</a> or <a href="#" data-try="sama">@sama</a></p>
+
+      <div class="stats">
+        <div><strong id="statProfiles">0</strong><span>Profiles tokenized</span></div>
+        <div><strong id="statVolume">$0</strong><span>24h volume</span></div>
+        <div><strong id="statHolders">0</strong><span>Holders</span></div>
+      </div>
+    </section>
+
+    <section id="top" class="section">
+      <div class="section-head">
+        <div>
+          <h2>Top 𝕏 Profiles</h2>
+          <p class="muted">The most valuable tokenized accounts right now.</p>
+        </div>
+        <div class="controls">
+          <input id="search" type="search" placeholder="Search profiles…" aria-label="Search profiles" />
+          <div class="tabs" role="tablist">
+            <button class="tab active" data-sort="mcap">Market cap</button>
+            <button class="tab" data-sort="change">Gainers</button>
+            <button class="tab" data-sort="followers">Followers</button>
+            <button class="tab" data-sort="volume">Volume</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="podium" id="podium"></div>
+
+      <div class="table-wrap">
+        <table class="board">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Profile</th>
+              <th class="num">Price</th>
+              <th class="num">24h</th>
+              <th class="num hide-sm">Market cap</th>
+              <th class="num hide-sm">Followers</th>
+              <th class="num hide-md">Bonding</th>
+              <th class="hide-sm"></th>
+            </tr>
+          </thead>
+          <tbody id="board"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="how" class="section">
+      <h2>How it works</h2>
+      <div class="steps">
+        <div class="step">
+          <span class="n">01</span>
+          <h3>Paste a handle</h3>
+          <p>Drop any X username. We pull the profile, followers and avatar to mint its token — ticker included.</p>
+        </div>
+        <div class="step">
+          <span class="n">02</span>
+          <h3>Launch on a curve</h3>
+          <p>Each profile starts on a fair bonding curve. No presale, no team allocation — the price moves with every buy and sell.</p>
+        </div>
+        <div class="step">
+          <span class="n">03</span>
+          <h3>Graduate</h3>
+          <p>When the curve fills, liquidity migrates to a DEX and the profile owner can claim creator fees by verifying their X account.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="faq" class="section faq">
+      <h2>FAQ</h2>
+      <details><summary>Do profile owners get anything?</summary><p>Yes. A share of trading fees is reserved for the account owner and becomes claimable once they verify by signing in with X.</p></details>
+      <details><summary>Can the same profile be tokenized twice?</summary><p>No. One handle, one token. If a profile already exists you'll be taken straight to its page.</p></details>
+      <details><summary>Is this financial advice?</summary><p>No. Tokens of X profiles are highly speculative and are not endorsed by the people they reference unless verified.</p></details>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span>© <span id="year"></span> Xprof. Not affiliated with X Corp.</span>
+    <span class="muted">Demo data — prices are simulated.</span>
+  </footer>
+
+  <dialog id="modal">
+    <form method="dialog" class="modal-inner" id="modalBody"></form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status"></div>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
