@@ -4,15 +4,6 @@
 
   // ---------- formatting ----------
   const compact = (n) => Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(n);
-  const usd = (n) => "$" + compact(n);
-  const ticker = (h) => "$" + h.replace(/[^a-z0-9]/gi, "").slice(0, 6).toUpperCase();
-
-  // deterministic RNG per handle so data is stable across reloads
-  const seeded = (str) => {
-    let h = 2166136261;
-    for (const c of str.toLowerCase()) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
-    return () => ((h = Math.imul(h ^ (h >>> 15), 2246822507) ^ Math.imul(h ^ (h >>> 13), 3266489909)) >>> 0) / 4294967296;
-  };
 
   const fallbackAvatar = (name) => {
     const initials = name.split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
@@ -25,28 +16,7 @@
   const badge = `<svg class="verified" viewBox="0 0 22 22"><path fill="#1d9bf0" d="M20.4 11c0-1.3-.8-2.4-1.9-2.9.4-1.2.2-2.5-.7-3.4-.9-.9-2.2-1.1-3.4-.7C13.9 2.8 12.8 2 11.5 2s-2.4.8-2.9 1.9c-1.2-.4-2.5-.2-3.4.7-.9.9-1.1 2.2-.7 3.4C3.3 8.6 2.5 9.7 2.5 11s.8 2.4 1.9 2.9c-.4 1.2-.2 2.5.7 3.4.9.9 2.2 1.1 3.4.7.5 1.1 1.6 1.9 2.9 1.9s2.4-.8 2.9-1.9c1.2.4 2.5.2 3.4-.7.9-.9 1.1-2.2.7-3.4 1.1-.5 1.9-1.6 1.9-2.9z"/><path fill="#fff" d="M9.6 14.6 6.5 11.5l1.1-1.1 2 2 4.9-4.9 1.1 1.1z"/></svg>`;
 
   // ---------- model ----------
-  function makeToken(p) {
-    const r = seeded(p.handle);
-    // market cap loosely tracks reach, with randomness
-    const mcap = Math.max(4_000, Math.pow(p.followers, 0.62) * (6 + r() * 14));
-    const history = [];
-    let v = mcap * (0.55 + r() * 0.4);
-    for (let i = 0; i < 48; i++) {
-      v *= 1 + (r() - 0.46) * 0.08;
-      history.push(v);
-    }
-    history.push(mcap);
-    return {
-      ...p,
-      ticker: ticker(p.handle),
-      mcap,
-      open: history[0],
-      volume: mcap * (0.15 + r() * 0.9),
-      holders: Math.round(80 + Math.sqrt(mcap) * (2 + r() * 4)),
-      history,
-    };
-  }
-  const tokens = window.PROFILES.map(makeToken);
+  const tokens = window.PROFILES;
 
   // ---------- state ----------
   let query = "";
@@ -82,19 +52,50 @@
       : `<tr><td colspan="4" class="empty">No profiles match “${query}”. Tokenize it above ↑</td></tr>`;
   }
 
-  function renderTicker() {
-    const items = [...tokens].sort(() => Math.random() - 0.5).slice(0, 14).map((t) => {
-      const buy = Math.random() > 0.35;
-      const amt = (Math.random() * 0.2 + 0.002).toFixed(3);
-      return `<span class="ticker-item">${img(t)}<b>@${t.handle}</b> ${buy ? '<span class="up">bought</span>' : '<span class="down">sold</span>'} ${amt} ETH of ${t.ticker}</span>`;
-    }).join("");
-    $("#ticker").innerHTML = items + items; // doubled for seamless loop
+  // ---------- live launches (same data as Explore) ----------
+  const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const ethFmt = (n) => (n >= 100 ? compact(n) : n >= 1 ? n.toFixed(2) : n.toPrecision(2)) + " ETH";
+  function ago(ts) {
+    if (!ts) return "";
+    const s = Math.max(0, Date.now() / 1000 - ts);
+    if (s < 60) return "just now";
+    for (const [unit, sec] of [["d", 86400], ["h", 3600], ["m", 60]]) if (s >= sec) return `${Math.floor(s / sec)}${unit} ago`;
   }
 
-  function renderStats() {
-    $("#statProfiles").textContent = compact(tokens.length * 1371 + 412);
-    $("#statVolume").textContent = usd(tokens.reduce((s, t) => s + t.volume, 0));
-    $("#statHolders").textContent = compact(tokens.reduce((s, t) => s + t.holders, 0));
+  function renderTicker(launches) {
+    const recent = launches.slice(0, 14);
+    if (!recent.length) {
+      $("#ticker").innerHTML = `<span class="ticker-item">No profile coins yet. <a href="launch.html"><b>Launch the first one →</b></a></span>`;
+      $("#ticker").classList.add("still");
+      return;
+    }
+    $("#ticker").classList.remove("still");
+    const items = recent.map((c) => {
+      const logo = /^https:\/\//i.test(c.logo) ? c.logo : c.handle ? avatarUrl(c.handle) : "";
+      return `<a class="ticker-item" href="token.html?address=${esc(c.token)}">${logo ? `<img src="${esc(logo)}" alt="" onerror="this.remove()" />` : ""}<b>${c.handle ? "@" + esc(c.handle) : esc(c.name)}</b> launched <span class="up">$${esc(c.symbol)}</span> · ${ethFmt(c.marketCapEth)} mcap · ${ago(c.createdAt)}</a>`;
+    }).join("");
+    // Repeat so the strip is wide enough to loop seamlessly.
+    const reps = Math.max(2, Math.ceil(8 / recent.length) * 2);
+    $("#ticker").innerHTML = items.repeat(reps);
+  }
+
+  function renderStats(launches) {
+    $("#statCoins").textContent = compact(launches.length);
+    $("#statMcap").textContent = ethFmt(launches.reduce((s, c) => s + (c.marketCapEth || 0), 0));
+    $("#statRaised").textContent = ethFmt(launches.reduce((s, c) => s + (c.raisedEth || 0), 0));
+  }
+
+  async function loadLive() {
+    try {
+      const res = await fetch("/api/launches");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      renderStats(data.launches);
+      renderTicker(data.launches);
+      setTimeout(loadLive, data.complete ? 30_000 : 4_000);
+    } catch {
+      setTimeout(loadLive, 30_000);
+    }
   }
 
   const launchUrl = (handle) => `launch.html?handle=${encodeURIComponent(handle)}&source=x`;
@@ -133,22 +134,10 @@
   $("#podium").addEventListener("click", openFrom);
 
 
-  // simulated live market
-  setInterval(() => {
-    for (let i = 0; i < 3; i++) {
-      const t = tokens[Math.floor(Math.random() * tokens.length)];
-      const m = 1 + (Math.random() - 0.47) * 0.03;
-      t.mcap *= m;
-      t.volume += t.mcap * 0.002;
-      t.history.push(t.mcap);
-      if (t.history.length > 60) t.history.shift();
-    }
-    renderStats();
-  }, 3000);
-
   $("#year").textContent = new Date().getFullYear();
-  renderStats();
-  renderTicker();
+  renderTicker([]);
+  $("#ticker").innerHTML = `<span class="ticker-item">Loading latest launches from Robinhood Chain…</span>`;
   renderPodium();
   renderBoard();
+  loadLive();
 })();

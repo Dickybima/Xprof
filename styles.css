@@ -391,3 +391,7 @@ button.wm-item em { color: #39ff14; }
   .board .tokenize-btn { padding: 6px 10px; font-size: 12px; }
   .board .name { max-width: 150px; }
 }
+a.ticker-item { text-decoration: none; }
+a.ticker-item:hover b { color: #39ff14; }
+.ticker-item a { color: inherit; text-decoration: none; }
+.ticker-track.still { animation: none; padding-left: 16px; }
