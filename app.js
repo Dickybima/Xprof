@@ -5,8 +5,6 @@
   // ---------- formatting ----------
   const compact = (n) => Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(n);
   const usd = (n) => "$" + compact(n);
-  const price = (n) => (n < 0.01 ? "$" + n.toFixed(6) : n < 1 ? "$" + n.toFixed(4) : "$" + n.toFixed(2));
-  const pct = (n) => (n >= 0 ? "+" : "") + n.toFixed(1) + "%";
   const ticker = (h) => "$" + h.replace(/[^a-z0-9]/gi, "").slice(0, 6).toUpperCase();
 
   // deterministic RNG per handle so data is stable across reloads
@@ -15,9 +13,6 @@
     for (const c of str.toLowerCase()) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
     return () => ((h = Math.imul(h ^ (h >>> 15), 2246822507) ^ Math.imul(h ^ (h >>> 13), 3266489909)) >>> 0) / 4294967296;
   };
-
-  const SUPPLY = 1e9;
-  const GRADUATION_MCAP = 69_000;
 
   const fallbackAvatar = (name) => {
     const initials = name.split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
@@ -51,89 +46,40 @@
       history,
     };
   }
-  const derive = (t) => ({
-    price: t.mcap / SUPPLY,
-    change: ((t.mcap - t.open) / t.open) * 100,
-    bonding: Math.min(100, (t.mcap / GRADUATION_MCAP) * 100),
-  });
-
   const tokens = window.PROFILES.map(makeToken);
-  const byHandle = (h) => tokens.find((t) => t.handle.toLowerCase() === h.toLowerCase());
 
   // ---------- state ----------
-  let sortKey = "mcap";
   let query = "";
-
-  const sorters = {
-    mcap: (a, b) => b.mcap - a.mcap,
-    change: (a, b) => derive(b).change - derive(a).change,
-    followers: (a, b) => b.followers - a.followers,
-    volume: (a, b) => b.volume - a.volume,
-  };
+  const byFollowers = (a, b) => b.followers - a.followers;
 
   // ---------- render ----------
-  function sparkline(canvas, data, up) {
-    const dpr = window.devicePixelRatio || 1;
-    const w = canvas.clientWidth, h = canvas.clientHeight;
-    if (!w || !h) return;
-    canvas.width = w * dpr; canvas.height = h * dpr;
-    const ctx = canvas.getContext("2d");
-    ctx.scale(dpr, dpr);
-    const min = Math.min(...data), max = Math.max(...data);
-    const x = (i) => (i / (data.length - 1)) * w;
-    const y = (v) => h - 4 - ((v - min) / (max - min || 1)) * (h - 8);
-    const color = up ? "#22c55e" : "#ef4444";
-    const grad = ctx.createLinearGradient(0, 0, 0, h);
-    grad.addColorStop(0, up ? "rgba(34,197,94,.25)" : "rgba(239,68,68,.25)");
-    grad.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.beginPath();
-    data.forEach((v, i) => (i ? ctx.lineTo(x(i), y(v)) : ctx.moveTo(x(i), y(v))));
-    ctx.strokeStyle = color; ctx.lineWidth = 1.6; ctx.stroke();
-    ctx.lineTo(w, h); ctx.lineTo(0, h); ctx.closePath();
-    ctx.fillStyle = grad; ctx.fill();
-  }
-
   function renderPodium(list) {
-    const top = [...tokens].sort(sorters.mcap).slice(0, 3);
-    $("#podium").innerHTML = top.map((t, i) => {
-      const d = derive(t);
-      return `<article class="card" data-handle="${t.handle}">
+    const top = [...tokens].sort(byFollowers).slice(0, 3);
+    $("#podium").innerHTML = top.map((t, i) => `<article class="card" data-handle="${t.handle}">
         <span class="rank">#${i + 1}</span>
         <div class="who">${img(t, "avatar lg")}
-          <div><div class="name">${t.name}${t.verified ? badge : ""}</div><div class="handle">@${t.handle} · <span class="tick">${t.ticker}</span></div></div>
+          <div><div class="name">${t.name}${t.verified ? badge : ""}</div><div class="handle">@${t.handle}</div></div>
         </div>
-        <canvas></canvas>
-        <div class="meta">
-          <div><span>Market cap</span>${usd(t.mcap)}</div>
-          <div><span>24h</span><b class="${d.change >= 0 ? "up" : "down"}">${pct(d.change)}</b></div>
+        <div class="meta card-foot">
           <div><span>Followers</span>${compact(t.followers)}</div>
+          <a class="btn btn-ghost btn-sm tokenize-btn" href="${launchUrl(t.handle)}">Tokenize</a>
         </div>
-      </article>`;
-    }).join("");
-    $$("#podium canvas").forEach((c, i) => sparkline(c, top[i].history, derive(top[i]).change >= 0));
+      </article>`).join("");
   }
 
-  function renderBoard(flash = {}) {
+  function renderBoard() {
     const q = query.trim().toLowerCase();
     const list = tokens
       .filter((t) => !q || t.handle.toLowerCase().includes(q) || t.name.toLowerCase().includes(q) || t.ticker.toLowerCase().includes(q))
-      .sort(sorters[sortKey]);
+      .sort(byFollowers);
     $("#board").innerHTML = list.length
-      ? list.map((t, i) => {
-          const d = derive(t);
-          const f = flash[t.handle] ? (flash[t.handle] > 0 ? "flash-up" : "flash-down") : "";
-          return `<tr data-handle="${t.handle}" class="${f}">
+      ? list.map((t, i) => `<tr data-handle="${t.handle}">
             <td class="rk">${i + 1}</td>
-            <td><div class="who">${img(t)}<div><div class="name">${t.name}${t.verified ? badge : ""}</div><div class="handle">@${t.handle}<span class="sep"> · </span><span class="tick">${t.ticker}</span></div></div></div></td>
-            <td class="num">${price(d.price)}</td>
-            <td class="num ${d.change >= 0 ? "up" : "down"}">${pct(d.change)}</td>
-            <td class="num hide-sm">${usd(t.mcap)}</td>
-            <td class="num hide-sm">${compact(t.followers)}</td>
-            <td class="hide-md"><div class="bar" title="${d.bonding.toFixed(0)}% to graduation"><i style="width:${d.bonding}%"></i></div></td>
-            <td class="num hide-sm"><a class="btn btn-ghost btn-sm tokenize-btn" href="${launchUrl(t.handle)}">Tokenize</a></td>
-          </tr>`;
-        }).join("")
-      : `<tr><td colspan="8" class="empty">No profiles match “${query}”. Tokenize it above ↑</td></tr>`;
+            <td><div class="who">${img(t)}<div><div class="name">${t.name}${t.verified ? badge : ""}</div><div class="handle">@${t.handle}</div></div></div></td>
+            <td class="num">${compact(t.followers)}</td>
+            <td class="num"><a class="btn btn-ghost btn-sm tokenize-btn" href="${launchUrl(t.handle)}">Tokenize</a></td>
+          </tr>`).join("")
+      : `<tr><td colspan="4" class="empty">No profiles match “${query}”. Tokenize it above ↑</td></tr>`;
   }
 
   function renderTicker() {
@@ -176,12 +122,6 @@
     $("#handleInput").focus();
   }));
 
-  $$(".tab").forEach((b) => b.addEventListener("click", () => {
-    $$(".tab").forEach((x) => x.classList.toggle("active", x === b));
-    sortKey = b.dataset.sort;
-    renderBoard();
-  }));
-
   $("#search").addEventListener("input", (e) => { query = e.target.value; renderBoard(); });
 
   const openFrom = (e) => {
@@ -195,7 +135,6 @@
 
   // simulated live market
   setInterval(() => {
-    const flash = {};
     for (let i = 0; i < 3; i++) {
       const t = tokens[Math.floor(Math.random() * tokens.length)];
       const m = 1 + (Math.random() - 0.47) * 0.03;
@@ -203,13 +142,9 @@
       t.volume += t.mcap * 0.002;
       t.history.push(t.mcap);
       if (t.history.length > 60) t.history.shift();
-      flash[t.handle] = m >= 1 ? 1 : -1;
     }
-    renderBoard(flash);
     renderStats();
   }, 3000);
-
-  window.addEventListener("resize", () => renderPodium());
 
   $("#year").textContent = new Date().getFullYear();
   renderStats();

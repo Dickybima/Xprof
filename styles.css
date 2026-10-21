@@ -383,3 +383,11 @@ button.wm-item em { color: #39ff14; }
 }
 .chart-panel, .chart-box { min-width: 0; overflow: hidden; }
 .coin-main > .panel { min-width: 0; }
+.card-foot { align-items: center; }
+.card-foot .tokenize-btn { margin-left: auto; }
+@media (max-width: 480px) {
+  .board .rk { display: none; }
+  .board th:first-child { display: none; }
+  .board .tokenize-btn { padding: 6px 10px; font-size: 12px; }
+  .board .name { max-width: 150px; }
+}
