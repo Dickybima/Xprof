@@ -23,5 +23,4 @@ export const HIDDEN_TOKENS = [];
 export const CREATOR_TAX_BPS = 200;
 
 // SPIDERPAD's own X account, linked from the X button in the nav.
-// Replace with the real profile, e.g. "https://x.com/spiderpad".
-export const SPIDERPAD_X_URL = "https://x.com";
+export const SPIDERPAD_X_URL = "https://x.com/SpiderpadHQ";
