@@ -139,8 +139,8 @@
   function renderTicker() {
     const items = [...tokens].sort(() => Math.random() - 0.5).slice(0, 14).map((t) => {
       const buy = Math.random() > 0.35;
-      const amt = (Math.random() * 4 + 0.05).toFixed(2);
-      return `<span class="ticker-item">${img(t)}<b>@${t.handle}</b> ${buy ? '<span class="up">bought</span>' : '<span class="down">sold</span>'} ${amt} SOL of ${t.ticker}</span>`;
+      const amt = (Math.random() * 0.2 + 0.002).toFixed(3);
+      return `<span class="ticker-item">${img(t)}<b>@${t.handle}</b> ${buy ? '<span class="up">bought</span>' : '<span class="down">sold</span>'} ${amt} ETH of ${t.ticker}</span>`;
     }).join("");
     $("#ticker").innerHTML = items + items; // doubled for seamless loop
   }
