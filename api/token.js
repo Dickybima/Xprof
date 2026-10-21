@@ -21,7 +21,7 @@ const tradeEvents = curveAbi.filter((x) => x.type === "event" && (x.name === "Cu
 const launchedEvent = factoryAbi.find((x) => x.type === "event" && x.name === "TokenLaunched");
 
 // Warm-instance caches.
-let sinceBlock = null;
+let sinceBlockPromise = null;
 const blockTimes = new Map();
 const scans = new Map(); // curve -> { scannedTo, trades, launch }
 let ethUsd = { value: null, at: 0 };
@@ -38,6 +38,11 @@ async function firstBlockToScan(latest) {
     guess -= BigInt(Math.ceil(perSecond * (Number(b.timestamp) - SPIDERPAD_SINCE) * 1.2)) + 1000n;
   }
   return guess < PONS.startBlock ? PONS.startBlock : guess;
+}
+
+function sinceBlock(latest) {
+  if (!sinceBlockPromise) sinceBlockPromise = firstBlockToScan(latest).catch((err) => { sinceBlockPromise = null; throw err; });
+  return sinceBlockPromise;
 }
 
 async function getLogsAdaptive(params, from, to) {
@@ -81,9 +86,13 @@ function toTrade(log) {
 // Reads new curve trades window by window until done or out of time.
 async function scanTrades(token, curve, deadline) {
   const latest = await client.getBlockNumber();
-  if (sinceBlock == null) sinceBlock = await firstBlockToScan(latest);
   let s = scans.get(curve);
-  if (!s) scans.set(curve, (s = { scannedTo: sinceBlock - 1n, trades: [], launch: null }));
+  if (!s) {
+    // Obtained through a call, not a top-level variable: Vercel's build-time
+    // tracer statically evaluates expressions and fails on null - 1n.
+    const since = await sinceBlock(latest);
+    scans.set(curve, (s = { scannedTo: since - 1n, trades: [], launch: null }));
+  }
   while (s.scannedTo < latest && Date.now() < deadline) {
     const windows = [];
     for (let from = s.scannedTo + 1n; from <= latest && windows.length < PARALLEL; from += WINDOW) {
