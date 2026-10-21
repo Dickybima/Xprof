@@ -1,4 +1,4 @@
-# Xprof — Tokenize X Profiles
+# SPIDERPAD — Tokenize X Profiles
 
 A dark, Noir-style landing page where any X (Twitter) profile can be tokenized on a bonding curve, with a live **Top X Profiles** leaderboard.
 
@@ -11,7 +11,7 @@ Typing a handle and pressing **Tokenize** opens `launch.html?handle=<handle>&sou
 
 ### Creator fees go to the X profile owner
 
-Every launch sets `creatorFeeRecipient` to the Xprof fee vault (`XPROF_FEE_VAULT` in `config.js`); launches are blocked until it is set. The coin's `socials.twitter` stores `https://x.com/<handle>` on-chain, so the vault knows which account each coin belongs to. When the owner proves the account is theirs, the vault:
+Every launch sets `creatorFeeRecipient` to the SPIDERPAD fee vault (`XPROF_FEE_VAULT` in `config.js`); launches are blocked until it is set. The coin's `socials.twitter` stores `https://x.com/<handle>` on-chain, so the vault knows which account each coin belongs to. When the owner proves the account is theirs, the vault:
 
 1. calls `PonsV2LaunchFactory.transferCreatorFeeRecipient(token, ownerWallet)` so future fees go straight to them, and
 2. claims the fees already accrued for that token from the Pons fee escrow and forwards them.

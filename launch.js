@@ -130,7 +130,7 @@ function renderFeeOwner(p) {
     : `<b class="down">not configured</b>`;
   els.feeOwner.innerHTML = `<img src="${esc(els.logoPreview.src)}" alt="" />
     <div><b>@${esc(p.handle)}</b> earns this coin's creator fees.
-    <div class="muted">Held in the Xprof fee vault ${vault} until @${esc(p.handle)} verifies the account and claims them.</div></div>`;
+    <div class="muted">Held in the SPIDERPAD fee vault ${vault} until @${esc(p.handle)} verifies the account and claims them.</div></div>`;
   els.feeOwner.querySelector("img").addEventListener("error", (e) => { e.target.src = initialsAvatar(p.name); }, { once: true });
 }
 
@@ -221,7 +221,7 @@ function collectParams() {
   if (cleanHandle(els.handle.value).toLowerCase() !== p.handle.toLowerCase()) {
     throw new Error(`Handle changed — re-detect @${cleanHandle(els.handle.value)} before launching`);
   }
-  if (!isAddress(XPROF_FEE_VAULT)) throw new Error("The Xprof fee vault address isn't configured yet");
+  if (!isAddress(XPROF_FEE_VAULT)) throw new Error("The SPIDERPAD fee vault address isn't configured yet");
   return {
     name: p.name,
     symbol: p.symbol,

@@ -257,3 +257,10 @@ dialog::backdrop { background: rgba(0,0,0,.7); backdrop-filter: blur(4px); }
 .panel, .table-wrap, .card, .step, .faq details, .stats, .tokenize { background-color: rgba(13,13,15,0.82); backdrop-filter: blur(6px); }
 .hero h1, .hero .sub, .hero .hint, .launch-title, .sub.left { text-shadow: 0 2px 18px #000, 0 0 6px #000; }
 [hidden] { display: none !important; }
+
+/* SPIDERPAD brand */
+.brand { gap: 10px; }
+.logo-mark { width: 36px; height: 36px; filter: drop-shadow(0 0 6px rgba(57,255,20,.55)); transition: transform .3s; }
+.brand:hover .logo-mark { transform: translateY(2px) rotate(-6deg); }
+.wordmark { font-weight: 800; font-size: 19px; letter-spacing: .08em; }
+.wordmark span { color: #39ff14; text-shadow: 0 0 10px rgba(57,255,20,.6); }
