@@ -3,6 +3,7 @@ import {
   decodeEventLog, zeroAddress, isAddress,
 } from "./vendor/viem.js";
 import { robinhood, PONS, factoryAbi, forwarderAbi, quoteOpeningBuy, applySlippage, randomSalt, SPIDERPAD_MARKER, ensureChain } from "./pons.js";
+import { CREATOR_TAX_BPS } from "./config.js";
 import { pickWallet, lastWallet, rememberWallet } from "./wallets.js";
 
 const $ = (s) => document.querySelector(s);
@@ -141,16 +142,22 @@ function readClient() {
 async function loadTerms() {
   const c = readClient();
   const read = (functionName, args) => c.readContract({ address: PONS.factory, abi: factoryAbi, functionName, args });
-  const [launchFee, launchEnabled, count] = await Promise.all([read("launchFee"), read("launchEnabled"), read("launchConfigCount")]);
+  const [launchFee, launchEnabled, count, maxTax] = await Promise.all([
+    read("launchFee"), read("launchEnabled"), read("launchConfigCount"), read("maxCreatorTaxBps").catch(() => 0n),
+  ]);
+  const creatorTaxBps = BigInt(CREATOR_TAX_BPS) < maxTax ? BigInt(CREATOR_TAX_BPS) : maxTax;
   let configId = null, config = null;
   for (let i = 0n; i < count; i++) {
     const cfg = await read("getLaunchConfig", [i]);
     if (cfg.enabled) { configId = i; config = cfg; break; }
   }
-  state.terms = { launchFee, launchEnabled, configId, config };
+  state.terms = { launchFee, launchEnabled, configId, config, creatorTaxBps };
   $("#mFee").textContent = fmtEth(launchFee);
   if (config) {
-    $("#mCurveFee").textContent = `${Number(config.curveFeeBps) / 100}%`;
+    const total = Number(config.curveFeeBps + creatorTaxBps) / 100;
+    $("#mCurveFee").textContent = creatorTaxBps > 0n
+      ? `${total}% (${Number(config.curveFeeBps) / 100}% curve + ${Number(creatorTaxBps) / 100}% to you)`
+      : `${total}%`;
     $("#mGrad").textContent = fmtEth(config.graduationThreshold);
     $("#mSupply").textContent = fmtTokens(config.supply);
   }
@@ -168,7 +175,7 @@ function updateEstimate() {
   const cfg = state.terms?.config;
   let buy;
   try { buy = initialBuyWei(); } catch { buy = 0n; }
-  $("#mOut").textContent = cfg && buy > 0n ? `≈ ${fmtTokens(quoteOpeningBuy(cfg, buy))} ${els.ticker.value || ""}` : "—";
+  $("#mOut").textContent = cfg && buy > 0n ? `≈ ${fmtTokens(quoteOpeningBuy(cfg, buy, state.terms.creatorTaxBps))} ${els.ticker.value || ""}` : "—";
 }
 els.initialBuy.addEventListener("input", updateEstimate);
 
@@ -247,7 +254,7 @@ function collectParams() {
     socials: { twitter: p.twitter, telegram: "", discord: "", website: els.website.value.trim(), farcaster: "" },
     // Creator fees go to whoever launches the coin.
     creatorFeeRecipient: state.account,
-    creatorTaxBps: 0,
+    creatorTaxBps: Number(state.terms?.creatorTaxBps ?? 0n),
     buybackEnabled: els.buyback.checked,
   };
 }
@@ -270,12 +277,12 @@ async function launch() {
     const expectedEconomics = await state.client.readContract({
       address: PONS.factory, abi: factoryAbi, functionName: "previewLaunchEconomics", args: [terms.configId, zeroAddress],
     });
-    const params = { ...base, expectedEconomics, salt: randomSalt() };
+    const params = { ...base, creatorTaxBps: Number(terms.creatorTaxBps), expectedEconomics, salt: randomSalt() };
     const buy = initialBuyWei();
 
     let request;
     if (buy > 0n) {
-      const minOut = applySlippage(quoteOpeningBuy(terms.config, buy), SLIPPAGE_BPS);
+      const minOut = applySlippage(quoteOpeningBuy(terms.config, buy, terms.creatorTaxBps), SLIPPAGE_BPS);
       ({ request } = await state.client.simulateContract({
         account: state.account, address: PONS.forwarder, abi: forwarderAbi, functionName: "launchAndBuy",
         args: [params, terms.configId, zeroAddress, buy, minOut, state.account, [SPIDERPAD_MARKER]],

@@ -93,6 +93,13 @@
         <section class="panel">
           <b>Creator fees</b>
           <p class="note" id="creatorNote">Creator fees from every trade go to the wallet that launched this coin.</p>
+          <div id="claimBox" hidden>
+            <div class="trade-row"><span>Pending on curve (est.)</span><b id="feePending">—</b></div>
+            <div class="trade-row"><span>Ready to claim</span><b id="feeReady">—</b></div>
+            <button class="btn btn-primary btn-block" id="claimBtn" type="button">Claim fees</button>
+            <div class="status" id="claimStatus" hidden></div>
+            <p class="fine" id="claimNote"></p>
+          </div>
         </section>
       </aside>
     </div>

@@ -34,6 +34,7 @@ export const factoryAbi = parseAbi([
   "function previewLaunchEconomics(uint256 launchConfigId, address pairToken) view returns (bytes32)",
   "function launchToken(TokenParams params, uint256 launchConfigId, address pairToken, address[] snipeTaxExemptions) payable returns (address token, address curve)",
   "function getLaunchedToken(address token) view returns (LaunchedToken)",
+  "function maxCreatorTaxBps() view returns (uint256)",
   "event TokenLaunched(address indexed token, address indexed curve, address indexed deployer, address pairToken, uint256 launchConfigId, uint256 graduationThreshold)",
   "event CreatorFeeRecipientUpdated(address indexed token, address indexed previousRecipient, address indexed newRecipient)",
 ]);
@@ -45,6 +46,12 @@ export const curveAbi = parseAbi([
   "function creatorTaxBps() view returns (uint256)",
   "function sellableTokens() view returns (uint256)",
   "function currentSnipeTaxBps(address recipient) view returns (uint256)",
+  "function quoteFeeBalance() view returns (uint256)",
+  "function creatorTaxBalance() view returns (uint256)",
+  "function buybackQuoteBalance() view returns (uint256)",
+  "function protocolFeeShareBps() view returns (uint16)",
+  "function feeEscrow() view returns (address)",
+  "function sweepFees(uint256 minBuybackTokensOut)",
   "function buy(uint256 quoteIn, uint256 minTokensOut, address recipient) payable returns (uint256 tokensOut)",
   "function sell(uint256 tokensIn, uint256 minQuoteOut, address recipient) returns (uint256 quoteOut)",
   "event CurveBuy(address indexed buyer, address indexed recipient, uint256 quoteIn, uint256 tokensOut, uint256 fee, uint256 tax)",
@@ -54,6 +61,12 @@ export const curveAbi = parseAbi([
   "function realQuoteReserve() view returns (uint256)",
   "function graduated() view returns (bool)",
   "event SnipeTaxExempted(address indexed account)",
+]);
+
+// Pons fee escrow: swept creator fees wait here until the recipient claims.
+export const escrowAbi = parseAbi([
+  "function balanceOf(address recipient) view returns (uint256)",
+  "function claim() returns (uint256 amount)",
 ]);
 
 export const tokenAbi = parseAbi([

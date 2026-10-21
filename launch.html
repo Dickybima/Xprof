@@ -110,13 +110,13 @@
             <label class="field-label" for="initialBuy">Initial buy (ETH, optional)</label>
             <input id="initialBuy" class="input mono" type="number" min="0" step="0.001" placeholder="0.0" />
           </div>
-          <label class="check"><input type="checkbox" id="buyback" checked /> Enable protocol buybacks</label>
+          <label class="check" title="With buybacks on, part of your fees buys back the coin, and only the Pons fee sweeper can move your fees to claim."><input type="checkbox" id="buyback" /> Enable protocol buybacks</label>
         </div>
 
         <div class="model" id="model">
           <div><span>Launch model</span><b>Robinhood Chain · bonding curve</b></div>
           <div><span>Launch fee</span><b id="mFee">—</b></div>
-          <div><span>Curve fee</span><b id="mCurveFee">—</b></div>
+          <div><span>Trading fee</span><b id="mCurveFee">—</b></div>
           <div><span>Graduates at</span><b id="mGrad">—</b></div>
           <div><span>Supply</span><b id="mSupply">—</b></div>
           <div><span>Est. tokens from initial buy</span><b id="mOut">—</b></div>

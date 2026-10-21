@@ -1,5 +1,5 @@
 import { createPublicClient, createWalletClient, custom, parseEther, formatEther, isAddress } from "./vendor/viem.js";
-import { robinhood, curveAbi, tokenAbi, quoteBuy, quoteSell, applySlippage, ensureChain } from "./pons.js";
+import { robinhood, curveAbi, tokenAbi, escrowAbi, quoteBuy, quoteSell, applySlippage, ensureChain } from "./pons.js";
 import { pickWallet, lastWallet, rememberWallet } from "./wallets.js";
 
 const $ = (s) => document.querySelector(s);
@@ -90,7 +90,10 @@ function renderHero() {
   $(".copy").addEventListener("click", (e) => {
     navigator.clipboard?.writeText(e.currentTarget.dataset.copy).then(() => toast("Contract address copied"), () => {});
   });
-  $("#creatorNote").innerHTML = `Creator fees from every trade go to <a href="${EXPLORER}/address/${coin.creatorFeeRecipient}" target="_blank" rel="noopener" class="mono">${short(coin.creatorFeeRecipient)}</a>, the wallet that launched this coin.`;
+  const taxPct = Number(coin.curveState.creatorTaxBps) / 100;
+  const feePct = Number(coin.curveState.feeBps) / 100;
+  $("#creatorNote").innerHTML = `Every trade pays ${feePct + taxPct}% in fees${taxPct ? ` (${feePct}% curve fee + ${taxPct}% creator tax)` : ""}. The creator's share goes to <a href="${EXPLORER}/address/${coin.creatorFeeRecipient}" target="_blank" rel="noopener" class="mono">${short(coin.creatorFeeRecipient)}</a>, the wallet that launched this coin. Only that wallet can claim.`;
+  renderClaim();
 }
 
 // ---------- chart ----------
@@ -241,7 +244,80 @@ function setConnectedUi() {
     ? `${w?.icon ? `<img class="wallet-icon" src="${esc(w.icon)}" alt="" />` : ""}${short(state.account)}`
     : "Connect wallet";
   renderTradePanel();
+  if (state.data) renderClaim();
 }
+
+// ---------- creator fee claim ----------
+const isCreator = () => state.account && state.data && state.account.toLowerCase() === state.data.coin.creatorFeeRecipient.toLowerCase();
+let fees = null; // live fee state, read only for the creator
+
+async function refreshFees() {
+  if (!isCreator()) { fees = null; return renderClaim(); }
+  const { curve } = state.data.coin;
+  const read = (functionName) => state.client.readContract({ address: curve, abi: curveAbi, functionName });
+  const [quoteFee, creatorTax, buyback, protocolShare, escrow] = await Promise.all([
+    read("quoteFeeBalance").catch(() => 0n), read("creatorTaxBalance").catch(() => 0n),
+    read("buybackQuoteBalance").catch(() => 0n), read("protocolFeeShareBps").catch(() => 0), read("feeEscrow"),
+  ]);
+  const ready = await state.client.readContract({ address: escrow, abi: escrowAbi, functionName: "balanceOf", args: [state.account] }).catch(() => 0n);
+  // The creator's cut of the pending base fee, minus the buyback earmark, plus the full creator tax.
+  let pending = quoteFee - (quoteFee * BigInt(protocolShare)) / 10_000n - buyback;
+  if (pending < 0n) pending = 0n;
+  fees = { quoteFee, creatorTax, buyback, escrow, ready, pending: pending + creatorTax };
+  renderClaim();
+}
+
+function renderClaim() {
+  const box = $("#claimBox");
+  box.hidden = !isCreator();
+  if (box.hidden) return;
+  const coin = state.data.coin;
+  $("#feePending").textContent = fees ? eth(Number(formatEther(fees.pending))) : "…";
+  $("#feeReady").textContent = fees ? eth(Number(formatEther(fees.ready))) : "…";
+  const canSweep = fees && !coin.graduated && fees.quoteFee + fees.creatorTax > 0n && fees.buyback === 0n
+    && state.account.toLowerCase() === coin.deployer.toLowerCase();
+  $("#claimBtn").disabled = state.busy || !fees || (!canSweep && fees.ready === 0n);
+  $("#claimNote").textContent = !fees ? ""
+    : fees.buyback > 0n ? "Buybacks are on for this coin, so part of the pending fees waits for the Pons fee sweeper before it can be claimed."
+    : "Claiming moves pending fees off the curve, then sends everything ready to your wallet. \"Ready to claim\" covers all your coins.";
+}
+
+async function claimFees() {
+  if (state.busy || !isCreator()) return;
+  const coin = state.data.coin;
+  const status = (html, kind = "") => { const el = $("#claimStatus"); el.hidden = !html; el.className = "status " + kind; el.innerHTML = html; };
+  const ex = (hash) => `<a href="${EXPLORER}/tx/${hash}" target="_blank" rel="noopener">view transaction ↗</a>`;
+  state.busy = true;
+  renderClaim();
+  try {
+    await refreshFees();
+    let claimed = 0n;
+    if (!coin.graduated && fees.quoteFee + fees.creatorTax > 0n && fees.buyback === 0n && state.account.toLowerCase() === coin.deployer.toLowerCase()) {
+      status("Confirm moving your fees off the curve…");
+      const { request } = await state.client.simulateContract({ account: state.account, address: coin.curve, abi: curveAbi, functionName: "sweepFees", args: [0n] });
+      const hash = await state.wallet.writeContract(request);
+      status(`Moving fees… ${ex(hash)}`);
+      await state.client.waitForTransactionReceipt({ hash });
+    }
+    const ready = await state.client.readContract({ address: fees.escrow, abi: escrowAbi, functionName: "balanceOf", args: [state.account] });
+    if (ready === 0n) throw new Error("No fees ready to claim yet");
+    status("Confirm the claim in your wallet…");
+    const { request } = await state.client.simulateContract({ account: state.account, address: fees.escrow, abi: escrowAbi, functionName: "claim" });
+    const hash = await state.wallet.writeContract(request);
+    status(`Claiming… ${ex(hash)}`);
+    const receipt = await state.client.waitForTransactionReceipt({ hash });
+    if (receipt.status !== "success") throw new Error("Transaction reverted");
+    claimed = ready;
+    status(`Claimed ${eth(Number(formatEther(claimed)))} to your wallet. ${ex(hash)}`, "ok");
+    await Promise.all([refreshFees(), refreshBalances()]);
+  } catch (err) {
+    status(esc(err.shortMessage || err.message || String(err)), "err");
+  } finally {
+    state.busy = false;
+    renderClaim();
+  }
+}
+$("#claimBtn").addEventListener("click", claimFees);
 
 async function refreshBalances() {
   if (!state.account || !state.data) return;
@@ -255,11 +331,13 @@ async function refreshBalances() {
   state.tokenBalance = tokBal;
   state.snipeBps = snipe ?? 0n;
   renderTradePanel();
+  refreshFees().catch(() => {});
 }
 
 function disconnect() {
   state.account = state.wallet = state.client = state.provider = state.walletInfo = null;
   state.ethBalance = state.tokenBalance = null;
+  fees = null;
   rememberWallet(null);
   setConnectedUi();
   toast("Wallet disconnected");

@@ -12,6 +12,11 @@ export const LEGACY_LAUNCH_TXS = [
   "0x5fc6be672d21fe01ba12b42cb9863a2bd329b9b2b9c9271ea3dd4e494f8c2a81",
 ];
 
+// Creator tax charged on top of the Pons curve fee (1%), paid entirely to the
+// launcher: 200 bps makes the total trading fee 3%. Capped on-chain by the
+// factory's maxCreatorTaxBps.
+export const CREATOR_TAX_BPS = 200;
+
 // SPIDERPAD's own X account, linked from the X button in the nav.
 // Replace with the real profile, e.g. "https://x.com/spiderpad".
 export const SPIDERPAD_X_URL = "https://x.com";
