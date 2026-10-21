@@ -76,7 +76,13 @@ export function quoteOpeningBuy(config, amountIn, creatorTaxBps = 0n) {
 
 export const applySlippage = (amount, bps) => (amount * (BPS - BigInt(bps))) / BPS;
 
+// Every SPIDERPAD launch salt starts with "SPIDERPAD" in ASCII, so Explore can
+// recognise our launches from the transaction input. The rest stays random.
+export const SALT_PREFIX = "0x535049444552504144";
+
 export function randomSalt() {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  return "0x" + [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+  const bytes = crypto.getRandomValues(new Uint8Array(32 - (SALT_PREFIX.length - 2) / 2));
+  return SALT_PREFIX + [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
+
+export const isSpiderpadSalt = (salt) => typeof salt === "string" && salt.toLowerCase().startsWith(SALT_PREFIX);

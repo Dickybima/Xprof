@@ -3,7 +3,6 @@ import {
   decodeEventLog, zeroAddress, isAddress,
 } from "./vendor/viem.js";
 import { robinhood, PONS, factoryAbi, forwarderAbi, quoteOpeningBuy, applySlippage, randomSalt } from "./pons.js";
-import { XPROF_FEE_VAULT } from "./config.js";
 import { pickWallet, lastWallet, rememberWallet } from "./wallets.js";
 
 const $ = (s) => document.querySelector(s);
@@ -103,12 +102,12 @@ async function detect() {
   els.twitter.value = state.profile.twitter;
   els.website.value = p.website || "";
   setLogo(p.avatar.length <= LOGO_MAX ? p.avatar : "");
-  renderFeeOwner(p);
+  renderFeeOwner();
 
   els.detected.hidden = false;
   els.detected.innerHTML = `<div><b>@${esc(p.handle)}</b> <span class="muted">· x.com` +
     (p.followers != null ? ` · ${compact(p.followers)} followers` : "") + `</span></div>` +
-    `<div class="muted">${p.fallback ? "Couldn't reach the X profile API — the coin uses the handle as its name." : "Creator fees are reserved for this account."}</div>`;
+    (p.fallback ? `<div class="muted">Couldn't reach the X profile API — the coin uses the handle as its name.</div>` : "");
 
   const url = new URL(location.href);
   url.searchParams.set("handle", p.handle);
@@ -125,14 +124,13 @@ els.handle.addEventListener("input", () => {
   }
 });
 
-function renderFeeOwner(p) {
-  const vault = XPROF_FEE_VAULT
-    ? `<a href="${robinhood.blockExplorers.default.url}/address/${XPROF_FEE_VAULT}" target="_blank" rel="noopener" class="mono">${short(XPROF_FEE_VAULT)}</a>`
-    : `<b class="down">not configured</b>`;
-  els.feeOwner.innerHTML = `<img src="${esc(els.logoPreview.src)}" alt="" />
-    <div><b>@${esc(p.handle)}</b> earns this coin's creator fees.
-    <div class="muted">Held in the SPIDERPAD fee vault ${vault} until @${esc(p.handle)} verifies the account and claims them.</div></div>`;
-  els.feeOwner.querySelector("img").addEventListener("error", (e) => { e.target.src = initialsAvatar(p.name); }, { once: true });
+function renderFeeOwner() {
+  const who = state.account
+    ? `<a href="${robinhood.blockExplorers.default.url}/address/${state.account}" target="_blank" rel="noopener" class="mono">${short(state.account)}</a>`
+    : "your connected wallet";
+  els.feeOwner.innerHTML = `<span class="fee-ico">◆</span>
+    <div><b>You earn this coin's creator fees.</b>
+    <div class="muted">Fees from every trade go straight to the wallet that launches it: ${who}.</div></div>`;
 }
 
 // ---------- chain ----------
@@ -202,6 +200,7 @@ function disconnect() {
   state.account = state.wallet = state.client = state.provider = state.walletInfo = null;
   rememberWallet(null);
   setConnectedUi();
+  renderFeeOwner();
   toast("Wallet disconnected");
 }
 
@@ -218,12 +217,14 @@ async function useWallet({ info, provider }, { silent = false } = {}) {
   state.client = createPublicClient({ chain: robinhood, transport: custom(provider) });
   rememberWallet(info.rdns);
   setConnectedUi();
+  renderFeeOwner();
   provider.on?.("accountsChanged", (accs) => {
     if (state.provider !== provider) return;
     if (!accs[0]) return disconnect();
     state.account = accs[0];
     state.wallet = createWalletClient({ account: accs[0], chain: robinhood, transport: custom(provider) });
     setConnectedUi();
+    renderFeeOwner();
   });
   provider.on?.("chainChanged", () => { if (state.provider === provider) location.reload(); });
   await loadTerms().catch((e) => toast("Couldn't read launch terms: " + (e.shortMessage || e.message)));
@@ -254,15 +255,14 @@ function collectParams() {
   if (cleanHandle(els.handle.value).toLowerCase() !== p.handle.toLowerCase()) {
     throw new Error(`Handle changed — re-detect @${cleanHandle(els.handle.value)} before launching`);
   }
-  if (!isAddress(XPROF_FEE_VAULT)) throw new Error("The SPIDERPAD fee vault address isn't configured yet");
   return {
     name: p.name,
     symbol: p.symbol,
     logo: state.logo.startsWith("data:") ? "" : state.logo,
     description: els.hook.value.trim(),
     socials: { twitter: p.twitter, telegram: "", discord: "", website: els.website.value.trim(), farcaster: "" },
-    // Fees always accrue to the vault, earmarked for the X account owner.
-    creatorFeeRecipient: XPROF_FEE_VAULT,
+    // Creator fees go to whoever launches the coin.
+    creatorFeeRecipient: state.account,
     creatorTaxBps: 0,
     buybackEnabled: els.buyback.checked,
   };
@@ -323,7 +323,7 @@ async function launch() {
     const ex = robinhood.blockExplorers.default.url;
     setStatus(
       launched
-        ? `🚀 <b>$${esc(params.symbol)}</b> is live on Robinhood Chain. Creator fees are reserved for <b>@${esc(state.profile.handle)}</b>.<br>
+        ? `🚀 <b>$${esc(params.symbol)}</b> is live on Robinhood Chain. Creator fees go to your wallet.<br>
            Token: <a href="${ex}/address/${launched.token}" target="_blank" rel="noopener">${short(launched.token)} ↗</a> ·
            Curve: <a href="${ex}/address/${launched.curve}" target="_blank" rel="noopener">${short(launched.curve)} ↗</a><br>
            <a href="explore.html">View in Explore →</a> · <a href="https://ponsfamily.com" target="_blank" rel="noopener">Trade ↗</a> · <a href="${txUrl}" target="_blank" rel="noopener">Transaction ↗</a>`
@@ -342,6 +342,7 @@ els.launch.addEventListener("click", launch);
 // ---------- init ----------
 $("#year").textContent = new Date().getFullYear();
 setLogo("");
+renderFeeOwner();
 const qs = new URLSearchParams(location.search);
 if (qs.get("handle")) {
   els.handle.value = qs.get("handle");

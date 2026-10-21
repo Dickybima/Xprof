@@ -9,23 +9,13 @@ Typing a handle and pressing **Tokenize** opens `launch.html?handle=<handle>&sou
 1. **Your profile** — detects the X profile (name, avatar, bio) via the public fxtwitter API.
 2. **Review and launch** — the coin name (X display name), ticker (handle, uppercased), logo (X avatar) and X link are locked to the profile. Only the one-line hook, website, optional initial buy and buyback toggle are editable. Live terms (launch fee, curve fee, graduation threshold) are read from the Pons v2 factory.
 
-### Creator fees go to the X profile owner
+### Creator fees go to the launcher
 
-Every launch sets `creatorFeeRecipient` to the SPIDERPAD fee vault (`XPROF_FEE_VAULT` in `config.js`); launches are blocked until it is set. The coin's `socials.twitter` stores `https://x.com/<handle>` on-chain, so the vault knows which account each coin belongs to. When the owner proves the account is theirs, the vault:
-
-1. calls `PonsV2LaunchFactory.transferCreatorFeeRecipient(token, ownerWallet)` so future fees go straight to them, and
-2. claims the fees already accrued for that token from the Pons fee escrow and forwards them.
-
-The connected wallet signs one transaction on Robinhood Chain (chain ID 4663):
-
-- no initial buy → `PonsV2LaunchFactory.launchToken` at `0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e`
-- with initial buy → `launchAndBuy` on the launch forwarder `0xe33E9E479dF8802cb0866d5d05258bEc4cF62948` (3% slippage)
-
-Economics are pinned with `previewLaunchEconomics`, and every launch is simulated before the wallet prompt. Addresses and ABI come from the reviewed [Reptilian Pons SDK](https://github.com/ReptilianHQ/ponsfamily/tree/main/sdk) (ABI revision `pons-v2-836f0f97`). `vendor/viem.js` is a local esbuild bundle of viem 2.38.0.
+Every launch sets `creatorFeeRecipient` to the wallet that signs the launch, so creator fees from every trade go straight to the launcher. Each launch salt starts with `SPIDERPAD` in ASCII (`SALT_PREFIX` in `pons.js`) so SPIDERPAD launches can be recognised on-chain.
 
 ## Explore
 
-`explore.html` lists every coin launched through SPIDERPAD, newest first, with market cap, bonding progress, search and sorting. It reads `/api/launches`, a Vercel function (`api/launches.js`) that scans the factory's `TokenLaunched` logs on Robinhood Chain and keeps launches whose creator fees go to a SPIDERPAD vault (`XPROF_FEE_VAULT` or `PAST_FEE_VAULTS`), including coins whose fees were already handed to their X owner. Responses are CDN-cached for 30 seconds. Set `ROBINHOOD_RPC_URL` in Vercel to use a dedicated RPC instead of the public one.
+`explore.html` lists every coin launched through SPIDERPAD, newest first, with market cap, bonding progress, search and sorting. It reads `/api/launches`, a Vercel function (`api/launches.js`) that scans the factory's `TokenLaunched` logs on Robinhood Chain and keeps launches whose transaction used a `SPIDERPAD`-prefixed salt, plus coins from earlier versions whose fees went to a past SPIDERPAD fee vault (`PAST_FEE_VAULTS` in `config.js`). Responses are CDN-cached for 30 seconds. Set `ROBINHOOD_RPC_URL` in Vercel to use a dedicated RPC instead of the public one.
 
 ## Features
 - Paste an X handle (or `x.com/...` URL) to tokenize it — opens a token card with price, market cap, bonding progress and buy/sell.

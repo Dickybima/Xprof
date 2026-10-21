@@ -324,3 +324,4 @@ button.wm-item em { color: #39ff14; }
 .wm-note { color: var(--muted); font-size: 14px; margin: 4px 0 0; }
 .wm-foot { color: #6b6b74; font-size: 12px; margin: 16px 0 0; line-height: 1.5; }
 .wallet-icon { width: 18px; height: 18px; border-radius: 5px; vertical-align: -4px; margin-right: 8px; }
+.fee-ico { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: #0d1f0a; color: #39ff14; flex-shrink: 0; }

@@ -1,16 +1,16 @@
 // GET /api/launches — every coin launched through SPIDERPAD, newest first.
-// A SPIDERPAD coin is a Pons v2 launch whose creator fees were routed to one
-// of our fee vaults (still, or until its X owner claimed them).
-import { createPublicClient, http, formatEther } from "../vendor/viem.js";
-import { robinhood, PONS, factoryAbi, curveAbi, tokenAbi } from "../pons.js";
-import { XPROF_FEE_VAULT, PAST_FEE_VAULTS } from "../config.js";
+// A SPIDERPAD coin is a Pons v2 launch whose salt carries our prefix, or one
+// from before that whose creator fees went to a past SPIDERPAD fee vault.
+import { createPublicClient, http, formatEther, decodeFunctionData } from "../vendor/viem.js";
+import { robinhood, PONS, factoryAbi, forwarderAbi, curveAbi, tokenAbi, isSpiderpadSalt } from "../pons.js";
+import { PAST_FEE_VAULTS } from "../config.js";
 
 const client = createPublicClient({
   chain: robinhood,
   transport: http(process.env.ROBINHOOD_RPC_URL || robinhood.rpcUrls.default.http[0], { timeout: 20_000 }),
 });
 
-const VAULTS = [XPROF_FEE_VAULT, ...PAST_FEE_VAULTS].filter(Boolean).map((a) => a.toLowerCase());
+const VAULTS = PAST_FEE_VAULTS.map((a) => a.toLowerCase());
 const launchedEvent = factoryAbi.find((x) => x.type === "event" && x.name === "TokenLaunched");
 const recipientEvent = factoryAbi.find((x) => x.type === "event" && x.name === "CreatorFeeRecipientUpdated");
 
@@ -36,6 +36,19 @@ async function inBatches(items, size, fn) {
   return out;
 }
 
+// True when the launch transaction called the factory or forwarder directly
+// with a SPIDERPAD-prefixed salt.
+async function launchedWithOurSalt(hash) {
+  const tx = await client.getTransaction({ hash });
+  for (const abi of [factoryAbi, forwarderAbi]) {
+    try {
+      const { args } = decodeFunctionData({ abi, data: tx.input });
+      return isSpiderpadSalt(args[0]?.salt);
+    } catch {}
+  }
+  return false;
+}
+
 async function scan() {
   const latest = await client.getBlockNumber();
   const from = cache.scannedTo + 1n;
@@ -51,12 +64,12 @@ async function scan() {
   const fresh = launched.filter((l) => !cache.launches.has(l.args.token.toLowerCase()));
   await inBatches(fresh, 25, async (log) => {
     const token = log.args.token.toLowerCase();
-    let recipient = null;
-    if (!cache.claimed.has(token)) {
+    let ours = cache.claimed.has(token) || (await launchedWithOurSalt(log.transactionHash));
+    if (!ours && VAULTS.length) {
       const info = await client.readContract({ address: PONS.factory, abi: factoryAbi, functionName: "getLaunchedToken", args: [log.args.token] });
-      recipient = info.creatorFeeRecipient.toLowerCase();
+      ours = VAULTS.includes(info.creatorFeeRecipient.toLowerCase());
     }
-    cache.launches.set(token, { log, ours: cache.claimed.has(token) || VAULTS.includes(recipient) });
+    cache.launches.set(token, { log, ours });
   });
   for (const [token, l] of cache.launches) if (cache.claimed.has(token)) l.ours = true;
   cache.scannedTo = latest;
