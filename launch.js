@@ -366,7 +366,7 @@ async function launch() {
         ? `🚀 <b>$${esc(params.symbol)}</b> is live on Robinhood Chain. Claim your creator fees anytime from the coin page.<br>
            Token: <a href="${ex}/address/${launched.token}" target="_blank" rel="noopener">${short(launched.token)} ↗</a> ·
            Curve: <a href="${ex}/address/${launched.curve}" target="_blank" rel="noopener">${short(launched.curve)} ↗</a><br>
-           <a href="token.html?address=${launched.token}">Open coin page →</a> · <a href="explore.html">Explore</a> · <a href="https://ponsfamily.com" target="_blank" rel="noopener">Trade ↗</a> · <a href="${txUrl}" target="_blank" rel="noopener">Transaction ↗</a>`
+           <a href="token.html?address=${launched.token}">Open coin page →</a> · <a href="https://x.com/intent/post?text=${encodeURIComponent(`$${params.symbol} is live on @SpiderpadHQ 🕷️`)}&url=${encodeURIComponent(`${location.origin}/c/${launched.token}`)}" target="_blank" rel="noopener">Share on 𝕏 ↗</a> · <a href="explore.html">Explore</a> · <a href="https://ponsfamily.com" target="_blank" rel="noopener">Trade ↗</a> · <a href="${txUrl}" target="_blank" rel="noopener">Transaction ↗</a>`
         : `Launched. <a href="${txUrl}" target="_blank" rel="noopener">View transaction ↗</a>`,
       "ok",
     );

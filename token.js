@@ -7,7 +7,9 @@ const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
 const EXPLORER = robinhood.blockExplorers.default.url;
 
-const address = new URLSearchParams(location.search).get("address") || "";
+// token.html?address=0x… or the share link /c/0x…
+const address = new URLSearchParams(location.search).get("address")
+  || (location.pathname.match(/\/c\/(0x[0-9a-fA-F]{40})/) || [])[1] || "";
 const state = {
   data: null, side: "buy", slippageBps: 1000, interval: 300, metric: "price",
   account: null, provider: null, walletInfo: null, wallet: null, client: null,
@@ -56,6 +58,16 @@ function setStatus(html, kind = "") {
   el.innerHTML = html;
 }
 
+// ---------- sharing ----------
+// /c/<address> serves this page with Open Graph tags, so the link unfurls into
+// the coin's share card (/api/og) on X, Telegram and Discord.
+const shareUrl = (coin) => `${location.origin}/c/${coin.token}`;
+function shareIntent(coin) {
+  const who = coin.handle ? `the profile coin of @${coin.handle}` : coin.name;
+  const text = `$${coin.symbol}, ${who}, is live on @SpiderpadHQ 🕷️`;
+  return `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(shareUrl(coin))}`;
+}
+
 // ---------- hero ----------
 function renderHero() {
   const { coin, ethUsd } = state.data;
@@ -78,6 +90,10 @@ function renderHero() {
         </div>
         ${coin.description ? `<p class="hero-desc">${esc(coin.description)}</p>` : ""}
       </div>
+      <div class="hero-share">
+        <a class="btn btn-primary share-x" href="${esc(shareIntent(coin))}" target="_blank" rel="noopener">Share on 𝕏</a>
+        <button class="btn btn-ghost share-copy" type="button">Copy link</button>
+      </div>
     </div>
     <div class="hero-stats">
       ${stat("Market cap", ethUsd ? usd(coin.marketCapEth * ethUsd) : eth(coin.marketCapEth), ethUsd ? eth(coin.marketCapEth) : "")}
@@ -88,6 +104,9 @@ function renderHero() {
     <div class="hero-bar"><i style="width:${coin.progress.toFixed(2)}%"></i></div>`;
   const img = $(".hero-logo");
   img.addEventListener("error", () => { img.src = img.dataset.fallback; }, { once: true });
+  $(".share-copy").addEventListener("click", () => {
+    navigator.clipboard?.writeText(shareUrl(coin)).then(() => toast("Share link copied"), () => {});
+  });
   $(".copy").addEventListener("click", (e) => {
     navigator.clipboard?.writeText(e.currentTarget.dataset.copy).then(() => toast("Contract address copied"), () => {});
   });
