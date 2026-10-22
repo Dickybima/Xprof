@@ -1,5 +1,5 @@
 import { createPublicClient, createWalletClient, custom, parseEther, formatEther, isAddress } from "./vendor/viem.js";
-import { robinhood, curveAbi, tokenAbi, escrowAbi, quoteBuy, quoteSell, applySlippage, ensureChain } from "./pons.js";
+import { robinhood, curveAbi, tokenAbi, escrowAbi, quoteBuy, quoteSell, applySlippage, ensureChain, onRobinhood } from "./pons.js";
 import { pickWallet, lastWallet, rememberWallet } from "./wallets.js";
 import { SPLITTER_ABI } from "./splitter.js";
 
@@ -311,6 +311,7 @@ async function claimFees() {
   state.busy = true;
   renderClaim();
   try {
+    await ensureChain(state.provider);
     await refreshFees();
     if (!coin.graduated && fees.quoteFee + fees.creatorTax > 0n && fees.buyback === 0n && state.account.toLowerCase() === coin.deployer.toLowerCase()) {
       status("Confirm moving your fees off the curve…");
@@ -343,6 +344,13 @@ $("#claimBtn").addEventListener("click", claimFees);
 
 async function refreshBalances() {
   if (!state.account || !state.data) return;
+  // On another network the coin's contracts don't exist; show nothing rather than zeros.
+  if (!(await onRobinhood(state.provider))) {
+    state.ethBalance = state.tokenBalance = null;
+    fees = null;
+    renderTradePanel();
+    return;
+  }
   const { token, curve } = state.data.coin;
   const [ethBal, tokBal, snipe] = await Promise.all([
     state.client.getBalance({ address: state.account }).catch(() => null),
@@ -385,7 +393,7 @@ async function useWallet({ info, provider }, { silent = false } = {}) {
     setConnectedUi();
     refreshBalances();
   });
-  provider.on?.("chainChanged", () => { if (state.provider === provider) location.reload(); });
+  provider.on?.("chainChanged", () => { if (state.provider === provider) refreshBalances(); });
   refreshBalances();
   return true;
 }
@@ -422,6 +430,7 @@ async function trade() {
   updateQuote();
   const ex = (hash) => `<a href="${EXPLORER}/tx/${hash}" target="_blank" rel="noopener">view transaction ↗</a>`;
   try {
+    await ensureChain(state.provider);
     const live = await liveCurve();
     let hash;
     if (state.side === "buy") {

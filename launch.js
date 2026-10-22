@@ -2,7 +2,7 @@ import {
   createPublicClient, createWalletClient, custom, http, parseEther, formatEther,
   decodeEventLog, encodeDeployData, zeroAddress, isAddress,
 } from "./vendor/viem.js";
-import { robinhood, PONS, factoryAbi, forwarderAbi, quoteOpeningBuy, applySlippage, randomSalt, SPIDERPAD_MARKER, ensureChain } from "./pons.js";
+import { robinhood, PONS, factoryAbi, forwarderAbi, quoteOpeningBuy, applySlippage, randomSalt, SPIDERPAD_MARKER, ensureChain, onRobinhood } from "./pons.js";
 import { CREATOR_TAX_BPS, SPIDERPAD_FEE_VAULT } from "./config.js";
 import { SPLITTER_ABI, SPLITTER_BYTECODE } from "./splitter.js";
 import { pickWallet, lastWallet, rememberWallet } from "./wallets.js";
@@ -215,9 +215,21 @@ async function useWallet({ info, provider }, { silent = false } = {}) {
     setConnectedUi();
     renderFeeOwner();
   });
-  provider.on?.("chainChanged", () => { if (state.provider === provider) location.reload(); });
-  await loadTerms().catch((e) => toast("Couldn't read launch terms: " + (e.shortMessage || e.message)));
+  provider.on?.("chainChanged", () => { if (state.provider === provider) refreshTerms(); });
+  await refreshTerms();
   return true;
+}
+
+// Reads launch terms through the wallet, but only once it's on Robinhood Chain:
+// on another network the Pons contracts don't exist and every read is empty.
+async function refreshTerms() {
+  if (!state.provider) return;
+  if (!(await onRobinhood(state.provider))) {
+    setStatus("Your wallet is on another network. Press Launch coin to switch it to Robinhood Chain.", "err");
+    return;
+  }
+  if (els.status.className.includes("err")) setStatus("");
+  await loadTerms().catch((e) => toast("Couldn't read launch terms: " + (e.shortMessage || e.message)));
 }
 
 async function connect() {
@@ -300,6 +312,8 @@ async function launch() {
   els.launch.disabled = true;
   try {
     const base = collectParams();
+    setStatus("Checking your wallet is on Robinhood Chain…");
+    await ensureChain(state.provider);
     setStatus("Reading live launch terms…");
     const terms = await loadTerms();
     if (!terms.launchEnabled) throw new Error("Launches are currently paused");

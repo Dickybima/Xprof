@@ -116,20 +116,41 @@ export function quoteSell({ quoteReserve, tokenReserve, feeBps, creatorTaxBps = 
   return gross - (gross * feeBps) / BPS - (gross * creatorTaxBps) / BPS;
 }
 
-// Switches the wallet to Robinhood Chain, adding the network if needed.
+// True when the wallet is on Robinhood Chain.
+export async function onRobinhood(provider) {
+  try {
+    return Number(await provider.request({ method: "eth_chainId" })) === robinhood.id;
+  } catch {
+    return false;
+  }
+}
+
+// Switches the wallet to Robinhood Chain, adding the network if needed, and
+// confirms it actually switched (some in-app wallet browsers silently don't).
 export async function ensureChain(provider) {
+  if (await onRobinhood(provider)) return;
   const hex = "0x" + robinhood.id.toString(16);
+  const add = () => provider.request({
+    method: "wallet_addEthereumChain",
+    params: [{
+      chainId: hex, chainName: robinhood.name, nativeCurrency: robinhood.nativeCurrency,
+      rpcUrls: robinhood.rpcUrls.default.http, blockExplorerUrls: [robinhood.blockExplorers.default.url],
+    }],
+  });
   try {
     await provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId: hex }] });
   } catch (err) {
-    if (err.code !== 4902 && err?.data?.originalError?.code !== 4902) throw err;
-    await provider.request({
-      method: "wallet_addEthereumChain",
-      params: [{
-        chainId: hex, chainName: robinhood.name, nativeCurrency: robinhood.nativeCurrency,
-        rpcUrls: robinhood.rpcUrls.default.http, blockExplorerUrls: [robinhood.blockExplorers.default.url],
-      }],
-    });
+    if (err.code === 4001) throw new Error("Switch your wallet to Robinhood Chain to continue");
+    // Unknown network (4902, or a generic error in some wallets): add it, then switch.
+    try {
+      await add();
+      await provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId: hex }] }).catch(() => {});
+    } catch (addErr) {
+      if (addErr.code === 4001) throw new Error("Add Robinhood Chain to your wallet to continue");
+    }
+  }
+  if (!(await onRobinhood(provider))) {
+    throw new Error(`Your wallet is not on Robinhood Chain. Switch to it (chain ID ${robinhood.id}, RPC ${robinhood.rpcUrls.default.http[0]}) and try again.`);
   }
 }
 
