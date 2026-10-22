@@ -4,13 +4,13 @@
 // from earlier versions are found the same way through the fee vaults they
 // used (creator fee recipients are exempted at launch), plus LEGACY_TOKENS and
 // LEGACY_LAUNCH_TXS.
-import { createPublicClient, http, formatEther, decodeEventLog } from "../vendor/viem.js";
+import { createPublicClient, http, formatEther, decodeEventLog, encodeEventTopics, getAddress, pad } from "../vendor/viem.js";
 import { robinhood, PONS, factoryAbi, curveAbi, tokenAbi, SPIDERPAD_MARKER } from "../pons.js";
 import { PAST_FEE_VAULTS, LEGACY_TOKENS, LEGACY_LAUNCH_TXS, EXPLORE_HIDE_BEFORE, HIDDEN_TOKENS, SPIDER_TOKEN } from "../config.js";
 
-// Coins always listed in Explore, first, whatever the scan finds.
+// Coins always listed in Explore, first, whatever the scan finds. They are
+// read straight from the factory, so they never add to the log scan.
 const PINNED = [SPIDER_TOKEN].filter(Boolean);
-const TOKEN_QUERY = [...LEGACY_TOKENS, ...PINNED];
 
 export const config = { maxDuration: 60 };
 
@@ -23,12 +23,15 @@ const exemptedEvent = curveAbi.find((x) => x.type === "event" && x.name === "Sni
 const launchedEvent = factoryAbi.find((x) => x.type === "event" && x.name === "TokenLaunched");
 const MARKERS = [SPIDERPAD_MARKER, ...PAST_FEE_VAULTS];
 
-// Warm-instance cache of curves already found and the last block scanned.
-// No SPIDERPAD coin is older than this, so scans start here instead of at the
-// factory's first block (tens of millions of blocks back).
-const SPIDERPAD_SINCE = Date.UTC(2026, 9, 20) / 1000;
-const WINDOW = 250_000n; // blocks per eth_getLogs request
-const PARALLEL = 4;
+// Launches carry the Explore marker from this time on; anything earlier is a
+// hidden test launch (EXPLORE_HIDE_BEFORE) or pinned, so scans start here.
+const SPIDERPAD_SINCE = Date.UTC(2026, 9, 21, 18, 0) / 1000;
+const WINDOW = 1_000_000n; // blocks per eth_getLogs request
+const PARALLEL = 3;
+// Blockscout's indexed log API answers for any block range in one request;
+// the RPC scan below is the fallback and covers the blocks it hasn't indexed.
+const BLOCKSCOUT_API = "https://robinhoodchain.blockscout.com/api";
+const BLOCKSCOUT_LAG = 20_000n;
 const TIME_BUDGET_MS = 40_000; // stay well inside maxDuration
 
 // Warm-instance cache of curves already found and the last block scanned.
@@ -75,11 +78,34 @@ async function getLogsAdaptive(params, from, to) {
 
 async function scanWindow(from, to) {
   const jobs = [getLogsAdaptive({ event: exemptedEvent, args: { account: MARKERS } }, from, to)];
-  if (TOKEN_QUERY.length) jobs.push(getLogsAdaptive({ address: PONS.factory, event: launchedEvent, args: { token: TOKEN_QUERY } }, from, to));
+  if (LEGACY_TOKENS.length) jobs.push(getLogsAdaptive({ address: PONS.factory, event: launchedEvent, args: { token: LEGACY_TOKENS } }, from, to));
   const [exempted, legacy = []] = await Promise.all(jobs);
   for (const log of exempted) addCurve(log.address, log.blockNumber, log.transactionHash);
-  const pinned = new Set(PINNED.map((t) => t.toLowerCase()));
-  for (const log of legacy) addCurve(log.args.curve, log.blockNumber, log.transactionHash, pinned.has(log.args.token.toLowerCase()));
+  for (const log of legacy) addCurve(log.args.curve, log.blockNumber, log.transactionHash);
+}
+
+// One indexed query per marker over the whole range. Returns false if
+// Blockscout can't answer, leaving the RPC scan to do the work.
+async function scanBlockscout(from) {
+  const topic0 = encodeEventTopics({ abi: curveAbi, eventName: "SnipeTaxExempted" })[0];
+  try {
+    for (const marker of MARKERS) {
+      const qs = new URLSearchParams({
+        module: "logs", action: "getLogs", fromBlock: from.toString(), toBlock: "latest",
+        topic0, topic1: pad(marker.toLowerCase()), topic0_1_opr: "and",
+      });
+      const res = await fetch(`${BLOCKSCOUT_API}?${qs}`, { signal: AbortSignal.timeout(10_000) });
+      const body = await res.json();
+      if (!Array.isArray(body.result)) {
+        if (/no (records|logs) found/i.test(body.message || "")) continue;
+        return false;
+      }
+      for (const log of body.result) addCurve(getAddress(log.address), BigInt(log.blockNumber), log.transactionHash);
+    }
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function inBatches(items, size, fn) {
@@ -92,7 +118,14 @@ async function inBatches(items, size, fn) {
 // when the scan reached the chain head.
 async function scan(deadline) {
   const latest = await client.getBlockNumber();
-  if (cache.scannedTo == null) cache.scannedTo = (await firstBlockToScan(latest)) - 1n;
+  if (cache.scannedTo == null) {
+    cache.scannedTo = (await firstBlockToScan(latest)) - 1n;
+    // Fast path on a cold start: let Blockscout cover all but its indexing lag.
+    if (await scanBlockscout(cache.scannedTo + 1n)) {
+      const indexedTo = latest - BLOCKSCOUT_LAG;
+      if (indexedTo > cache.scannedTo) cache.scannedTo = indexedTo;
+    }
+  }
 
   if (!cache.legacyDone) {
     let complete = true;
