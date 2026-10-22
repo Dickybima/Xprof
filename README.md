@@ -9,9 +9,11 @@ Typing a handle and pressing **Tokenize** opens `launch.html?handle=<handle>&sou
 1. **Your profile** — detects the X profile (name, avatar, bio) via the public fxtwitter API.
 2. **Review and launch** — the coin name (X display name), ticker (handle, uppercased), logo (X avatar) and X link are locked to the profile. Only the one-line hook, website, optional initial buy and buyback toggle are editable. Live terms (launch fee, curve fee, graduation threshold) are read from the Pons v2 factory.
 
-### Creator fees go to the launcher
+### Fees: 3% per trade
 
-Every launch sets `creatorFeeRecipient` to the wallet that signs the launch, so creator fees from every trade go straight to the launcher. Each launch salt starts with `SPIDERPAD` in ASCII (`SALT_PREFIX` in `pons.js`) so SPIDERPAD launches can be recognised on-chain.
+Every trade on a SPIDERPAD coin pays 3%: the 1% Pons curve fee plus a 2% creator tax (`CREATOR_TAX_BPS` in `config.js`). The coin's creator fee recipient is a `SpiderpadFeeSplitter` (`contracts/SpiderpadFeeSplitter.sol`, deployed from the launcher's wallet on their first launch and reused after), which pays half of everything it receives to the launcher and half to the SPIDERPAD vault (`SPIDERPAD_FEE_VAULT`): 1% of each trade to the creator and 1% to SPIDERPAD. The launcher claims from the coin page (`sweepFees` on the curve, then `claim()` on the splitter); anyone can trigger a splitter payout, and its recipients are fixed at deployment.
+
+`splitter.js` holds the compiled ABI and bytecode (solc 0.8.26, optimizer 200 runs, evmVersion paris). Each launch salt starts with `SPIDERPAD` in ASCII (`SALT_PREFIX` in `pons.js`).
 
 ## Explore
 

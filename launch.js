@@ -3,7 +3,8 @@ import {
   decodeEventLog, zeroAddress, isAddress,
 } from "./vendor/viem.js";
 import { robinhood, PONS, factoryAbi, forwarderAbi, quoteOpeningBuy, applySlippage, randomSalt, SPIDERPAD_MARKER, ensureChain } from "./pons.js";
-import { CREATOR_TAX_BPS } from "./config.js";
+import { CREATOR_TAX_BPS, SPIDERPAD_FEE_VAULT } from "./config.js";
+import { SPLITTER_ABI, SPLITTER_BYTECODE } from "./splitter.js";
 import { pickWallet, lastWallet, rememberWallet } from "./wallets.js";
 
 const $ = (s) => document.querySelector(s);
@@ -130,8 +131,8 @@ function renderFeeOwner() {
     ? `<a href="${robinhood.blockExplorers.default.url}/address/${state.account}" target="_blank" rel="noopener" class="mono">${short(state.account)}</a>`
     : "your connected wallet";
   els.feeOwner.innerHTML = `<span class="fee-ico">◆</span>
-    <div><b>You earn this coin's creator fees.</b>
-    <div class="muted">Fees from every trade go straight to the wallet that launches it: ${who}.</div></div>`;
+    <div><b>You earn creator fees from every trade.</b>
+    <div class="muted">Claim them anytime from the coin page to ${who}.</div></div>`;
 }
 
 // ---------- chain ----------
@@ -154,10 +155,7 @@ async function loadTerms() {
   state.terms = { launchFee, launchEnabled, configId, config, creatorTaxBps };
   $("#mFee").textContent = fmtEth(launchFee);
   if (config) {
-    const total = Number(config.curveFeeBps + creatorTaxBps) / 100;
-    $("#mCurveFee").textContent = creatorTaxBps > 0n
-      ? `${total}% (${Number(config.curveFeeBps) / 100}% curve + ${Number(creatorTaxBps) / 100}% to you)`
-      : `${total}%`;
+    $("#mCurveFee").textContent = `${Number(config.curveFeeBps + creatorTaxBps) / 100}%`;
     $("#mGrad").textContent = fmtEth(config.graduationThreshold);
     $("#mSupply").textContent = fmtTokens(config.supply);
   }
@@ -252,11 +250,33 @@ function collectParams() {
     logo: state.logo.startsWith("data:") ? "" : state.logo,
     description: els.hook.value.trim(),
     socials: { twitter: p.twitter, telegram: "", discord: "", website: els.website.value.trim(), farcaster: "" },
-    // Creator fees go to whoever launches the coin.
+    // Replaced by the launcher's fee splitter right before launching.
     creatorFeeRecipient: state.account,
     creatorTaxBps: Number(state.terms?.creatorTaxBps ?? 0n),
     buybackEnabled: els.buyback.checked,
   };
+}
+
+// The launcher's fee splitter: half of the coin's creator fees to the launcher,
+// half to the SPIDERPAD vault. One splitter serves all of a wallet's coins, so
+// it is deployed once and reused on later launches.
+async function feeSplitter() {
+  const escrow = await state.client.readContract({ address: PONS.factory, abi: factoryAbi, functionName: "feeEscrow" });
+  const key = `spiderpad:splitter:${state.account.toLowerCase()}`;
+  let saved = null;
+  try { saved = localStorage.getItem(key); } catch {}
+  if (saved && isAddress(saved)) {
+    const read = (functionName) => state.client.readContract({ address: saved, abi: SPLITTER_ABI, functionName }).catch(() => null);
+    const [creator, vault, esc] = await Promise.all([read("creator"), read("vault"), read("escrow")]);
+    if (creator?.toLowerCase() === state.account.toLowerCase() && vault?.toLowerCase() === SPIDERPAD_FEE_VAULT.toLowerCase() && esc?.toLowerCase() === escrow.toLowerCase()) return saved;
+  }
+  setStatus("Step 1 of 2: confirm creating your fee wallet…");
+  const hash = await state.wallet.deployContract({ abi: SPLITTER_ABI, bytecode: SPLITTER_BYTECODE, args: [state.account, SPIDERPAD_FEE_VAULT, escrow] });
+  setStatus(`Creating your fee wallet… <a href="${robinhood.blockExplorers.default.url}/tx/${hash}" target="_blank" rel="noopener">view transaction ↗</a>`);
+  const receipt = await state.client.waitForTransactionReceipt({ hash });
+  if (receipt.status !== "success" || !receipt.contractAddress) throw new Error("Couldn't create the fee wallet");
+  try { localStorage.setItem(key, receipt.contractAddress); } catch {}
+  return receipt.contractAddress;
 }
 
 async function launch() {
@@ -279,24 +299,25 @@ async function launch() {
     });
     const params = { ...base, creatorTaxBps: Number(terms.creatorTaxBps), expectedEconomics, salt: randomSalt() };
     const buy = initialBuyWei();
-
-    let request;
-    if (buy > 0n) {
-      const minOut = applySlippage(quoteOpeningBuy(terms.config, buy, terms.creatorTaxBps), SLIPPAGE_BPS);
-      ({ request } = await state.client.simulateContract({
+    const minOut = buy > 0n ? applySlippage(quoteOpeningBuy(terms.config, buy, terms.creatorTaxBps), SLIPPAGE_BPS) : 0n;
+    const simulate = (p) => buy > 0n
+      ? state.client.simulateContract({
         account: state.account, address: PONS.forwarder, abi: forwarderAbi, functionName: "launchAndBuy",
-        args: [params, terms.configId, zeroAddress, buy, minOut, state.account, [SPIDERPAD_MARKER]],
+        args: [p, terms.configId, zeroAddress, buy, minOut, state.account, [SPIDERPAD_MARKER]],
         value: terms.launchFee + buy,
-      }));
-    } else {
-      ({ request } = await state.client.simulateContract({
+      })
+      : state.client.simulateContract({
         account: state.account, address: PONS.factory, abi: factoryAbi, functionName: "launchToken",
-        args: [params, terms.configId, zeroAddress, [SPIDERPAD_MARKER]],
+        args: [p, terms.configId, zeroAddress, [SPIDERPAD_MARKER]],
         value: terms.launchFee,
-      }));
-    }
+      });
 
-    setStatus("Confirm the transaction in your wallet…");
+    // Check the launch would go through before asking for any signature.
+    await simulate({ ...params, creatorFeeRecipient: state.account });
+    params.creatorFeeRecipient = await feeSplitter();
+    const { request } = await simulate(params);
+
+    setStatus("Step 2 of 2: confirm the launch in your wallet…");
     const hash = await state.wallet.writeContract(request);
     const txUrl = `${robinhood.blockExplorers.default.url}/tx/${hash}`;
     setStatus(`Launching… <a href="${txUrl}" target="_blank" rel="noopener">view transaction ↗</a>`);
@@ -314,7 +335,7 @@ async function launch() {
     const ex = robinhood.blockExplorers.default.url;
     setStatus(
       launched
-        ? `🚀 <b>$${esc(params.symbol)}</b> is live on Robinhood Chain. Creator fees go to your wallet.<br>
+        ? `🚀 <b>$${esc(params.symbol)}</b> is live on Robinhood Chain. Claim your creator fees anytime from the coin page.<br>
            Token: <a href="${ex}/address/${launched.token}" target="_blank" rel="noopener">${short(launched.token)} ↗</a> ·
            Curve: <a href="${ex}/address/${launched.curve}" target="_blank" rel="noopener">${short(launched.curve)} ↗</a><br>
            <a href="token.html?address=${launched.token}">Open coin page →</a> · <a href="explore.html">Explore</a> · <a href="https://ponsfamily.com" target="_blank" rel="noopener">Trade ↗</a> · <a href="${txUrl}" target="_blank" rel="noopener">Transaction ↗</a>`

@@ -1,6 +1,7 @@
 import { createPublicClient, createWalletClient, custom, parseEther, formatEther, isAddress } from "./vendor/viem.js";
 import { robinhood, curveAbi, tokenAbi, escrowAbi, quoteBuy, quoteSell, applySlippage, ensureChain } from "./pons.js";
 import { pickWallet, lastWallet, rememberWallet } from "./wallets.js";
+import { SPLITTER_ABI } from "./splitter.js";
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
@@ -90,9 +91,8 @@ function renderHero() {
   $(".copy").addEventListener("click", (e) => {
     navigator.clipboard?.writeText(e.currentTarget.dataset.copy).then(() => toast("Contract address copied"), () => {});
   });
-  const taxPct = Number(coin.curveState.creatorTaxBps) / 100;
-  const feePct = Number(coin.curveState.feeBps) / 100;
-  $("#creatorNote").innerHTML = `Every trade pays ${feePct + taxPct}% in fees${taxPct ? ` (${feePct}% curve fee + ${taxPct}% creator tax)` : ""}. The creator's share goes to <a href="${EXPLORER}/address/${coin.creatorFeeRecipient}" target="_blank" rel="noopener" class="mono">${short(coin.creatorFeeRecipient)}</a>, the wallet that launched this coin. Only that wallet can claim.`;
+  const totalPct = (Number(coin.curveState.feeBps) + Number(coin.curveState.creatorTaxBps)) / 100;
+  $("#creatorNote").innerHTML = `Every trade pays ${totalPct}% in fees. Creator fees go to the wallet that launched this coin, <a href="${EXPLORER}/address/${coin.deployer}" target="_blank" rel="noopener" class="mono">${short(coin.deployer)}</a>. Only that wallet can claim.`;
   renderClaim();
 }
 
@@ -248,10 +248,26 @@ function setConnectedUi() {
 }
 
 // ---------- creator fee claim ----------
-const isCreator = () => state.account && state.data && state.account.toLowerCase() === state.data.coin.creatorFeeRecipient.toLowerCase();
+// Coins launched with a fee splitter pay their creator fees to the splitter,
+// which forwards half to the launcher and half to the SPIDERPAD vault. Older
+// coins pay the launcher's wallet directly.
+let owner = null; // { creator, splitter } for the loaded coin
 let fees = null; // live fee state, read only for the creator
+const isCreator = () => state.account && owner && state.account.toLowerCase() === owner.creator.toLowerCase();
+
+async function resolveOwner() {
+  const coin = state.data.coin;
+  if (owner?.coin === coin.token) return owner;
+  const creator = await state.client.readContract({ address: coin.creatorFeeRecipient, abi: SPLITTER_ABI, functionName: "creator" }).catch(() => null);
+  owner = creator
+    ? { coin: coin.token, creator, splitter: coin.creatorFeeRecipient }
+    : { coin: coin.token, creator: coin.creatorFeeRecipient, splitter: null };
+  return owner;
+}
 
 async function refreshFees() {
+  if (!state.account || !state.data) { fees = null; return renderClaim(); }
+  await resolveOwner();
   if (!isCreator()) { fees = null; return renderClaim(); }
   const { curve } = state.data.coin;
   const read = (functionName) => state.client.readContract({ address: curve, abi: curveAbi, functionName });
@@ -259,11 +275,16 @@ async function refreshFees() {
     read("quoteFeeBalance").catch(() => 0n), read("creatorTaxBalance").catch(() => 0n),
     read("buybackQuoteBalance").catch(() => 0n), read("protocolFeeShareBps").catch(() => 0), read("feeEscrow"),
   ]);
-  const ready = await state.client.readContract({ address: escrow, abi: escrowAbi, functionName: "balanceOf", args: [state.account] }).catch(() => 0n);
-  // The creator's cut of the pending base fee, minus the buyback earmark, plus the full creator tax.
+  const ready = owner.splitter
+    ? await state.client.readContract({ address: owner.splitter, abi: SPLITTER_ABI, functionName: "claimable" }).catch(() => 0n)
+    : await state.client.readContract({ address: escrow, abi: escrowAbi, functionName: "balanceOf", args: [state.account] }).catch(() => 0n);
+  // The recipient's cut of the pending base fee, minus the buyback earmark, plus the full creator tax.
   let pending = quoteFee - (quoteFee * BigInt(protocolShare)) / 10_000n - buyback;
   if (pending < 0n) pending = 0n;
-  fees = { quoteFee, creatorTax, buyback, escrow, ready, pending: pending + creatorTax };
+  pending += creatorTax;
+  // With a splitter the launcher's share is half of what the splitter receives.
+  const share = (v) => (owner.splitter ? v - v / 2n : v);
+  fees = { quoteFee, creatorTax, buyback, escrow, ready, pending, readyShare: share(ready), pendingShare: share(pending) };
   renderClaim();
 }
 
@@ -272,14 +293,14 @@ function renderClaim() {
   box.hidden = !isCreator();
   if (box.hidden) return;
   const coin = state.data.coin;
-  $("#feePending").textContent = fees ? eth(Number(formatEther(fees.pending))) : "…";
-  $("#feeReady").textContent = fees ? eth(Number(formatEther(fees.ready))) : "…";
+  $("#feePending").textContent = fees ? eth(Number(formatEther(fees.pendingShare))) : "…";
+  $("#feeReady").textContent = fees ? eth(Number(formatEther(fees.readyShare))) : "…";
   const canSweep = fees && !coin.graduated && fees.quoteFee + fees.creatorTax > 0n && fees.buyback === 0n
     && state.account.toLowerCase() === coin.deployer.toLowerCase();
   $("#claimBtn").disabled = state.busy || !fees || (!canSweep && fees.ready === 0n);
   $("#claimNote").textContent = !fees ? ""
     : fees.buyback > 0n ? "Buybacks are on for this coin, so part of the pending fees waits for the Pons fee sweeper before it can be claimed."
-    : "Claiming moves pending fees off the curve, then sends everything ready to your wallet. \"Ready to claim\" covers all your coins.";
+    : "Claiming moves pending fees off the curve, then sends your fees to your wallet. \"Ready to claim\" covers all your coins.";
 }
 
 async function claimFees() {
@@ -291,7 +312,6 @@ async function claimFees() {
   renderClaim();
   try {
     await refreshFees();
-    let claimed = 0n;
     if (!coin.graduated && fees.quoteFee + fees.creatorTax > 0n && fees.buyback === 0n && state.account.toLowerCase() === coin.deployer.toLowerCase()) {
       status("Confirm moving your fees off the curve…");
       const { request } = await state.client.simulateContract({ account: state.account, address: coin.curve, abi: curveAbi, functionName: "sweepFees", args: [0n] });
@@ -299,16 +319,18 @@ async function claimFees() {
       status(`Moving fees… ${ex(hash)}`);
       await state.client.waitForTransactionReceipt({ hash });
     }
-    const ready = await state.client.readContract({ address: fees.escrow, abi: escrowAbi, functionName: "balanceOf", args: [state.account] });
-    if (ready === 0n) throw new Error("No fees ready to claim yet");
+    await refreshFees();
+    if (fees.ready === 0n) throw new Error("No fees ready to claim yet");
+    const share = fees.readyShare;
     status("Confirm the claim in your wallet…");
-    const { request } = await state.client.simulateContract({ account: state.account, address: fees.escrow, abi: escrowAbi, functionName: "claim" });
+    const { request } = owner.splitter
+      ? await state.client.simulateContract({ account: state.account, address: owner.splitter, abi: SPLITTER_ABI, functionName: "claim" })
+      : await state.client.simulateContract({ account: state.account, address: fees.escrow, abi: escrowAbi, functionName: "claim" });
     const hash = await state.wallet.writeContract(request);
     status(`Claiming… ${ex(hash)}`);
     const receipt = await state.client.waitForTransactionReceipt({ hash });
     if (receipt.status !== "success") throw new Error("Transaction reverted");
-    claimed = ready;
-    status(`Claimed ${eth(Number(formatEther(claimed)))} to your wallet. ${ex(hash)}`, "ok");
+    status(`Claimed ${eth(Number(formatEther(share)))} to your wallet. ${ex(hash)}`, "ok");
     await Promise.all([refreshFees(), refreshBalances()]);
   } catch (err) {
     status(esc(err.shortMessage || err.message || String(err)), "err");
@@ -338,6 +360,7 @@ function disconnect() {
   state.account = state.wallet = state.client = state.provider = state.walletInfo = null;
   state.ethBalance = state.tokenBalance = null;
   fees = null;
+  owner = null;
   rememberWallet(null);
   setConnectedUi();
   toast("Wallet disconnected");

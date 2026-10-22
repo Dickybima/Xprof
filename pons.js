@@ -35,6 +35,7 @@ export const factoryAbi = parseAbi([
   "function launchToken(TokenParams params, uint256 launchConfigId, address pairToken, address[] snipeTaxExemptions) payable returns (address token, address curve)",
   "function getLaunchedToken(address token) view returns (LaunchedToken)",
   "function maxCreatorTaxBps() view returns (uint256)",
+  "function feeEscrow() view returns (address)",
   "event TokenLaunched(address indexed token, address indexed curve, address indexed deployer, address pairToken, uint256 launchConfigId, uint256 graduationThreshold)",
   "event CreatorFeeRecipientUpdated(address indexed token, address indexed previousRecipient, address indexed newRecipient)",
 ]);
