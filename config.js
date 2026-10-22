@@ -26,5 +26,8 @@ export const CREATOR_TAX_BPS = 200;
 // 1% of each trade to the creator and 1% to SPIDERPAD.
 export const SPIDERPAD_FEE_VAULT = "0x2E87D16561ffE0857eAaF5A227Fa046dAe2d3067";
 
+// The $SPIDER token, linked from the $SPIDER button in the nav.
+export const SPIDER_TOKEN = "0xB52259330Ec52Ae026B9B6Db25FB3524bad30e96";
+
 // SPIDERPAD's own X account, linked from the X button in the nav.
 export const SPIDERPAD_X_URL = "https://x.com/SpiderpadHQ";
