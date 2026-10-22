@@ -1,6 +1,6 @@
 import {
   createPublicClient, createWalletClient, custom, http, parseEther, formatEther,
-  decodeEventLog, zeroAddress, isAddress,
+  decodeEventLog, encodeDeployData, zeroAddress, isAddress,
 } from "./vendor/viem.js";
 import { robinhood, PONS, factoryAbi, forwarderAbi, quoteOpeningBuy, applySlippage, randomSalt, SPIDERPAD_MARKER, ensureChain } from "./pons.js";
 import { CREATOR_TAX_BPS, SPIDERPAD_FEE_VAULT } from "./config.js";
@@ -270,8 +270,22 @@ async function feeSplitter() {
     const [creator, vault, esc] = await Promise.all([read("creator"), read("vault"), read("escrow")]);
     if (creator?.toLowerCase() === state.account.toLowerCase() && vault?.toLowerCase() === SPIDERPAD_FEE_VAULT.toLowerCase() && esc?.toLowerCase() === escrow.toLowerCase()) return saved;
   }
+  if (!isAddress(escrow) || /^0x0+$/.test(escrow)) throw new Error("Couldn't read the fee escrow from Robinhood Chain. Try again in a moment.");
+  const data = encodeDeployData({ abi: SPLITTER_ABI, bytecode: SPLITTER_BYTECODE, args: [state.account, SPIDERPAD_FEE_VAULT, escrow] });
+  // Dry-run the deployment so a constructor revert shows a real reason
+  // instead of the wallet's generic "fee estimation failed".
+  setStatus("Preparing your fee wallet…");
+  try {
+    await state.client.call({ account: state.account, data });
+  } catch (err) {
+    throw new Error(`Couldn't create the fee wallet: ${err.shortMessage || err.message}`);
+  }
+  // Supply the gas limit ourselves: some wallets can't estimate contract
+  // creations and leave the confirm button disabled. Unused gas isn't charged.
+  let gas = 2_000_000n;
+  try { gas = ((await state.client.estimateGas({ account: state.account, data })) * 13n) / 10n; } catch {}
   setStatus("Step 1 of 2: confirm creating your fee wallet…");
-  const hash = await state.wallet.deployContract({ abi: SPLITTER_ABI, bytecode: SPLITTER_BYTECODE, args: [state.account, SPIDERPAD_FEE_VAULT, escrow] });
+  const hash = await state.wallet.sendTransaction({ data, gas });
   setStatus(`Creating your fee wallet… <a href="${robinhood.blockExplorers.default.url}/tx/${hash}" target="_blank" rel="noopener">view transaction ↗</a>`);
   const receipt = await state.client.waitForTransactionReceipt({ hash });
   if (receipt.status !== "success" || !receipt.contractAddress) throw new Error("Couldn't create the fee wallet");
