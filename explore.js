@@ -32,14 +32,14 @@ const sorters = {
 
 function card(c) {
   const logo = safeUrl(c.logo) || (c.logo?.startsWith("data:image/") ? c.logo : "") || initials(c.name);
-  return `<article class="coin" data-token="${esc(c.token)}">
+  return `<article class="coin${c.pinned ? " pinned" : ""}" data-token="${esc(c.token)}">
     <div class="coin-top">
       <img class="coin-logo" src="${esc(logo)}" alt="" loading="lazy" data-fallback="${esc(initials(c.name))}" />
       <div class="coin-id">
         <div class="name">${esc(c.name)}</div>
         <div class="handle"><span class="tick">$${esc(c.symbol)}</span>${c.handle ? ` · <a href="https://x.com/${esc(c.handle)}" target="_blank" rel="noopener">@${esc(c.handle)}</a>` : ""}</div>
       </div>
-      ${c.graduated ? `<span class="badge-grad">Graduated</span>` : ""}
+      ${c.pinned ? `<span class="badge-pin">🕷️ Official</span>` : c.graduated ? `<span class="badge-grad">Graduated</span>` : ""}
     </div>
     ${c.description ? `<p class="coin-desc">${esc(c.description)}</p>` : ""}
     <div class="coin-stats">
@@ -61,7 +61,8 @@ function render() {
   const q = query.trim().toLowerCase().replace(/^@/, "");
   const list = launches
     .filter((c) => !q || [c.name, c.symbol, c.handle, c.token].some((v) => v && v.toLowerCase().includes(q)))
-    .sort(sorters[sortKey]);
+    // The official coin stays first whatever the sort.
+    .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || sorters[sortKey](a, b));
   $("#grid").innerHTML = list.length
     ? list.map(card).join("")
     : `<div class="explore-empty">${launches.length ? `No coins match “${esc(query)}”.` : `No profile coins yet. <a href="launch.html">Launch the first one →</a>`}</div>`;

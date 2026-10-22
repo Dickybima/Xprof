@@ -407,3 +407,7 @@ a.ticker-item:hover b { color: #39ff14; }
   .wallet .btn:not(.x-link) { padding: 9px 10px; font-size: 13px; }
   .wallet .x-link { width: 36px; height: 36px; }
 }
+
+/* pinned official coin in Explore */
+.coin.pinned { border-color: rgba(57,255,20,.55); box-shadow: 0 0 30px rgba(57,255,20,.15); background: linear-gradient(180deg, rgba(20,40,14,.85), rgba(13,13,15,.85)); }
+.badge-pin { font-size: 11px; font-weight: 800; color: #041204; background: #39ff14; border-radius: 999px; padding: 4px 9px; white-space: nowrap; box-shadow: 0 0 12px rgba(57,255,20,.5); }

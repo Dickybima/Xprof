@@ -6,7 +6,11 @@
 // LEGACY_LAUNCH_TXS.
 import { createPublicClient, http, formatEther, decodeEventLog } from "../vendor/viem.js";
 import { robinhood, PONS, factoryAbi, curveAbi, tokenAbi, SPIDERPAD_MARKER } from "../pons.js";
-import { PAST_FEE_VAULTS, LEGACY_TOKENS, LEGACY_LAUNCH_TXS, EXPLORE_HIDE_BEFORE, HIDDEN_TOKENS } from "../config.js";
+import { PAST_FEE_VAULTS, LEGACY_TOKENS, LEGACY_LAUNCH_TXS, EXPLORE_HIDE_BEFORE, HIDDEN_TOKENS, SPIDER_TOKEN } from "../config.js";
+
+// Coins always listed in Explore, first, whatever the scan finds.
+const PINNED = [SPIDER_TOKEN].filter(Boolean);
+const TOKEN_QUERY = [...LEGACY_TOKENS, ...PINNED];
 
 export const config = { maxDuration: 60 };
 
@@ -30,9 +34,15 @@ const TIME_BUDGET_MS = 40_000; // stay well inside maxDuration
 // Warm-instance cache of curves already found and the last block scanned.
 const cache = { scannedTo: null, curves: new Map(), legacyDone: false };
 
-const addCurve = (curve, blockNumber, txHash) => {
+const addCurve = (curve, blockNumber, txHash, pinned = false) => {
   const key = curve.toLowerCase();
-  if (!cache.curves.has(key)) cache.curves.set(key, { curve, blockNumber, txHash });
+  const known = cache.curves.get(key);
+  if (!known) cache.curves.set(key, { curve, blockNumber, txHash, pinned });
+  else {
+    // A pinned coin is added before its launch log is found; fill that in later.
+    if (known.blockNumber == null && blockNumber != null) Object.assign(known, { blockNumber, txHash });
+    if (pinned) known.pinned = true;
+  }
 };
 
 // Estimates the first block at or after SPIDERPAD_SINCE from the chain's
@@ -65,10 +75,11 @@ async function getLogsAdaptive(params, from, to) {
 
 async function scanWindow(from, to) {
   const jobs = [getLogsAdaptive({ event: exemptedEvent, args: { account: MARKERS } }, from, to)];
-  if (LEGACY_TOKENS.length) jobs.push(getLogsAdaptive({ address: PONS.factory, event: launchedEvent, args: { token: LEGACY_TOKENS } }, from, to));
+  if (TOKEN_QUERY.length) jobs.push(getLogsAdaptive({ address: PONS.factory, event: launchedEvent, args: { token: TOKEN_QUERY } }, from, to));
   const [exempted, legacy = []] = await Promise.all(jobs);
   for (const log of exempted) addCurve(log.address, log.blockNumber, log.transactionHash);
-  for (const log of legacy) addCurve(log.args.curve, log.blockNumber, log.transactionHash);
+  const pinned = new Set(PINNED.map((t) => t.toLowerCase()));
+  for (const log of legacy) addCurve(log.args.curve, log.blockNumber, log.transactionHash, pinned.has(log.args.token.toLowerCase()));
 }
 
 async function inBatches(items, size, fn) {
@@ -125,7 +136,7 @@ async function describe({ curve, blockNumber, txHash }) {
     read(curve, curveAbi, "realQuoteReserve").catch(() => 0n),
     read(curve, curveAbi, "graduationThreshold").catch(() => 0n),
     read(curve, curveAbi, "graduated").catch(() => false),
-    client.getBlock({ blockNumber }).catch(() => null),
+    blockNumber != null ? client.getBlock({ blockNumber }).catch(() => null) : null,
   ]);
   const twitter = socials[0] || "";
   const handle = (twitter.match(/(?:x|twitter)\.com\/([A-Za-z0-9_]{1,15})/i) || [])[1] || null;
@@ -150,11 +161,21 @@ export default async function handler(req, res) {
   const deadline = Date.now() + TIME_BUDGET_MS;
   try {
     const complete = await scan(deadline);
-    const curves = [...cache.curves.values()].sort((a, b) => Number(b.blockNumber - a.blockNumber)).slice(0, 200);
+    // Pinned coins are read straight from the factory, so they show up even
+    // before (or without) the log scan reaching their launch.
+    for (const token of PINNED) {
+      const launch = await client.readContract({ address: PONS.factory, abi: factoryAbi, functionName: "getLaunchedToken", args: [token] }).catch(() => null);
+      if (launch?.exists) addCurve(launch.curve, null, null, true);
+    }
+    const curves = [...cache.curves.values()]
+      .sort((a, b) => (b.pinned - a.pinned) || Number((b.blockNumber ?? 0n) - (a.blockNumber ?? 0n)))
+      .slice(0, 200);
+    const pinnedCurves = new Set(curves.filter((c) => c.pinned).map((c) => c.curve.toLowerCase()));
     const hideBefore = Date.parse(EXPLORE_HIDE_BEFORE) / 1000 || 0;
     const hidden = new Set(HIDDEN_TOKENS.map((t) => t.toLowerCase()));
     const launches = (await inBatches(curves, 20, (c) => describe(c).catch(() => null)))
-      .filter((l) => l && !hidden.has(l.token.toLowerCase()) && !(l.createdAt && l.createdAt < hideBefore));
+      .filter((l) => l && (pinnedCurves.has(l.curve.toLowerCase()) || (!hidden.has(l.token.toLowerCase()) && !(l.createdAt && l.createdAt < hideBefore))))
+      .map((l) => (pinnedCurves.has(l.curve.toLowerCase()) ? { ...l, pinned: true } : l));
     // A partial scan is cached only briefly so the next request continues it.
     res.setHeader("Cache-Control", complete ? "s-maxage=30, stale-while-revalidate=300" : "no-store");
     res.status(200).json({ launches, complete, scannedTo: Number(cache.scannedTo) });
