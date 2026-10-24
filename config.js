@@ -28,7 +28,7 @@ export const SPIDERPAD_FEE_VAULT = "0x2E87D16561ffE0857eAaF5A227Fa046dAe2d3067";
 
 // The $SPDR token, linked from the $SPDR button in the nav and pinned at the
 // top of Explore. Empty until it launches: the button shows "Coming soon".
-export const SPIDER_TOKEN = "";
+export const SPIDER_TOKEN = "0x9f5E234F6215b43b0964634124D813e8D8F7ccCb";
 
 // SPIDERPAD's own X account, linked from the X button in the nav.
 export const SPIDERPAD_X_URL = "https://x.com/SpiderpadHQ";
