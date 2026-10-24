@@ -7,7 +7,7 @@
   document.body.prepend(canvas);
   const ctx = canvas.getContext("2d");
 
-  const NEON = "57, 255, 20";
+  const NEON = "255, 255, 255";
   const SPOKES = 20;
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 

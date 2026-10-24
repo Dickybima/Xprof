@@ -40,7 +40,7 @@ function ago(ts) {
 }
 function initials(name) {
   const t = (name || "?").split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
-  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><rect width='100%' height='100%' fill='#0d1f0a'/><text x='50%' y='54%' fill='#39ff14' font-family='Inter,sans-serif' font-size='44' font-weight='700' text-anchor='middle' dominant-baseline='middle'>${t}</text></svg>`;
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><rect width='100%' height='100%' fill='#1c1c20'/><text x='50%' y='54%' fill='#ffffff' font-family='Inter,sans-serif' font-size='44' font-weight='700' text-anchor='middle' dominant-baseline='middle'>${t}</text></svg>`;
   return "data:image/svg+xml," + encodeURIComponent(svg).replace(/'/g, "%27");
 }
 let toastTimer;
@@ -131,7 +131,7 @@ function ensureChart() {
     localization: { locale: "en-US" },
   });
   series = chart.addCandlestickSeries({
-    upColor: "#39ff14", downColor: "#ef4444", borderVisible: false, wickUpColor: "#39ff14", wickDownColor: "#ef4444",
+    upColor: "#ffffff", downColor: "#ef4444", borderVisible: false, wickUpColor: "#ffffff", wickDownColor: "#ef4444",
     priceFormat: { type: "custom", minMove: 1e-12, formatter: (v) => (state.metric === "mcap" ? (state.data?.ethUsd ? usd(v) : `${compact(v)} Ξ`) : tiny(v)) },
   });
 }

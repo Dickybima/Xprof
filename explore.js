@@ -16,7 +16,7 @@ function ago(ts) {
 
 function initials(name) {
   const t = (name || "?").split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
-  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='80' height='80'><rect width='100%' height='100%' fill='#0d1f0a'/><text x='50%' y='54%' fill='#39ff14' font-family='Inter,sans-serif' font-size='30' font-weight='700' text-anchor='middle' dominant-baseline='middle'>${t}</text></svg>`;
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='80' height='80'><rect width='100%' height='100%' fill='#1c1c20'/><text x='50%' y='54%' fill='#ffffff' font-family='Inter,sans-serif' font-size='30' font-weight='700' text-anchor='middle' dominant-baseline='middle'>${t}</text></svg>`;
   return "data:image/svg+xml," + encodeURIComponent(svg).replace(/'/g, "%27");
 }
 
