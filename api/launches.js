@@ -207,7 +207,7 @@ export default async function handler(req, res) {
     const hideBefore = Date.parse(EXPLORE_HIDE_BEFORE) / 1000 || 0;
     const hidden = new Set(HIDDEN_TOKENS.map((t) => t.toLowerCase()));
     const launches = (await inBatches(curves, 20, (c) => describe(c).catch(() => null)))
-      .filter((l) => l && (pinnedCurves.has(l.curve.toLowerCase()) || (!hidden.has(l.token.toLowerCase()) && !(l.createdAt && l.createdAt < hideBefore))))
+      .filter((l) => l && (pinnedCurves.has(l.curve.toLowerCase()) || (!hidden.has(l.token.toLowerCase()) && l.createdAt != null && l.createdAt >= hideBefore)))
       .map((l) => (pinnedCurves.has(l.curve.toLowerCase()) ? { ...l, pinned: true } : l));
     // A partial scan is cached only briefly so the next request continues it.
     res.setHeader("Cache-Control", complete ? "s-maxage=30, stale-while-revalidate=300" : "no-store");
