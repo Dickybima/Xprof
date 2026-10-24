@@ -11,7 +11,7 @@ const FONTS = [
 ];
 const LOGO = "data:image/svg+xml;base64," + fs.readFileSync(new URL("../logo.svg", import.meta.url)).toString("base64");
 
-const NEON = "#ffffff";
+const NEON = "#39ff14";
 const X_ICON = "data:image/svg+xml;base64," + Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#a1a1aa" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>').toString("base64");
 const W = 1200, H = 630;
 
@@ -80,7 +80,7 @@ function card(coin, usd, avatar) {
       coin
         ? [
           h("div", { alignItems: "center" },
-            img(avatar, { width: 168, height: 168, borderRadius: 36, border: `4px solid ${NEON}`, objectFit: "cover", boxShadow: `0 0 40px rgba(255,255,255,.45)` }),
+            img(avatar, { width: 168, height: 168, borderRadius: 36, border: `4px solid ${NEON}`, objectFit: "cover", boxShadow: `0 0 40px rgba(57,255,20,.45)` }),
             h("div", { flexDirection: "column", marginLeft: 36, maxWidth: 820 },
               h("div", { fontSize: 72, fontWeight: 800, lineHeight: 1.05, letterSpacing: -2 }, coin.name.length > 22 ? coin.name.slice(0, 21) + "…" : coin.name),
               h("div", { alignItems: "center", marginTop: 10, fontSize: 36, fontWeight: 800 },
@@ -91,7 +91,7 @@ function card(coin, usd, avatar) {
             stat("Price", money(coin.priceEth, usd)),
             stat(coin.graduated ? "Status" : "Bonding curve", coin.graduated ? "Graduated" : `${coin.progress.toFixed(1)}%`)),
           h("div", { marginTop: 22, width: 680, height: 14, borderRadius: 99, background: "#1b1d20" },
-            h("div", { width: `${Math.max(2, coin.progress)}%`, height: 14, borderRadius: 99, background: `linear-gradient(90deg, #8a8a93, ${NEON})`, boxShadow: `0 0 18px ${NEON}` })),
+            h("div", { width: `${Math.max(2, coin.progress)}%`, height: 14, borderRadius: 99, background: `linear-gradient(90deg, #1a9e05, ${NEON})`, boxShadow: `0 0 18px ${NEON}` })),
         ]
         : [
           h("div", { fontSize: 84, fontWeight: 800, letterSpacing: -2, marginTop: 80 }, "Tokenize any X profile."),
@@ -102,7 +102,7 @@ function card(coin, usd, avatar) {
           img(LOGO, { width: 64, height: 64 }),
           h("div", { fontSize: 40, fontWeight: 800, letterSpacing: 3, marginLeft: 14 }, "SPIDER", h("span", { color: NEON }, "PAD"))),
         h("div", { alignItems: "center", fontSize: 26, fontWeight: 600, color: "#d4d4d8", padding: "12px 24px", borderRadius: 999, border: "2px solid #2a2d31", background: "rgba(8,10,8,.85)" },
-          h("div", { width: 14, height: 14, borderRadius: 99, background: "#ffffff", marginRight: 12, boxShadow: "0 0 12px #ffffff" }),
+          h("div", { width: 14, height: 14, borderRadius: 99, background: "#c6f432", marginRight: 12, boxShadow: "0 0 12px #c6f432" }),
           "spiderpad.fun · Robinhood Chain"))));
 }
 
